@@ -98,6 +98,17 @@
       <p class="hint" id="autostart-dev" data-i18n="autostart_dev" hidden></p>
     </fieldset>
 
+    <h2 data-i18n="sec_voice"></h2>
+    <fieldset>
+      <p class="hint" id="voice-status" data-i18n="voice_checking"></p>
+      <div class="row" style="margin-top: 8px">
+        <button id="voice-download" class="primary" data-i18n="voice_download" style="flex: 1"></button>
+        <button id="voice-cancel" class="ghost" data-i18n="voice_cancel" hidden style="flex: 0 0 auto"></button>
+      </div>
+      <progress id="voice-progress" max="100" value="0" style="width: 100%; margin-top: 8px" hidden></progress>
+      <p class="hint" data-i18n="voice_hint"></p>
+    </fieldset>
+
     <button id="save" class="primary" data-i18n="save"></button>
     <button id="refresh" class="ghost" data-i18n="refresh"></button>
     <div id="status" role="status"></div>
@@ -112,7 +123,7 @@
         <li>Di tab <b>Pengaturan</b>, pilih monitor dan mode jendela, lalu klik <b>Simpan</b>. Bawaannya layar penuh di monitor kedua.</li>
         <li>Buka halaman kasir (POS) di browser dan buka layar pelanggan dari sana. Halaman POS terhubung ke <code>ws://<span class="addr"></span></code> dan mengirim alamat layar pelanggan.</li>
         <li>Pertama kali, muncul dialog izin untuk situs POS. Pilih <b>Izinkan</b>. Izin tersimpan, jadi tidak ditanya lagi untuk situs yang sama.</li>
-        <li>Opsional: pasang model suara natural Supertonic (±139 MB) supaya pengumuman pembayaran terdengar natural. Caranya ada di README proyek.</li>
+        <li>Opsional: buka tab <b>Pengaturan</b> lalu klik <b>Unduh suara natural</b> (±139 MB) supaya pengumuman pembayaran terdengar natural. Butuh internet sekali saja.</li>
       </ol>
 
       <h2>Pemakaian sehari-hari</h2>
@@ -145,7 +156,7 @@
         <li><code>speak</code>: umumkan pembayaran berhasil lewat speaker. <code>method</code>: <code>cash</code>/<code>edc</code>/<code>qris</code>, <code>amount</code> angka positif. Diputar dengan denting koin di depan; <code>ok</code> dikirim tanpa menunggu suara selesai.</li>
       </ul>
       <pre><code>{"type":"ping"}
-→ {"ok":true,"version":"0.3.0","monitor":true}
+→ {"ok":true,"version":"0.4.0","monitor":true}
 
 {"type":"open","url":"https://pos.contoh.com/layar-pelanggan"}
 → {"ok":true}
@@ -159,7 +170,7 @@
 // contoh gagal
 → {"ok":false,"error":"Alamat tidak berasal dari situs POS ini"}</code></pre>
       <p><code>close</code> juga melupakan alamat terakhir, jadi layar tidak muncul lagi saat login berikutnya sampai POS mengirim <code>open</code> lagi.</p>
-      <p>Kata QRIS diucapkan &quot;keris&quot;. Suara natural Supertonic 3 Bahasa Indonesia dipakai bila folder <code>tts-model</code> ada di folder konfigurasi aplikasi; tanpa itu suara mengikuti TTS OS. Cara memasang model ada di README proyek.</p>
+      <p>Kata QRIS diucapkan &quot;keris&quot;. Suara natural Supertonic 3 Bahasa Indonesia dipakai bila folder <code>tts-model</code> ada di folder konfigurasi aplikasi; tanpa itu suara mengikuti TTS OS. Model bisa diunduh lewat tombol di tab Pengaturan.</p>
     </div>
 
     <div data-lang="en" hidden>
@@ -170,7 +181,7 @@
         <li>In the <b>Settings</b> tab, choose the monitor and window mode, then click <b>Save</b>. The default is fullscreen on the second monitor.</li>
         <li>Open the cashier (POS) page in a browser and open the customer display from there. The POS page connects to <code>ws://<span class="addr"></span></code> and sends the customer display address.</li>
         <li>The first time, a permission dialog appears for the POS site. Choose <b>Allow</b>. The choice is saved, so you won't be asked again for the same site.</li>
-        <li>Optional: install the Supertonic natural voice model (±139 MB) so payment announcements sound natural. See the project README for how.</li>
+        <li>Optional: in the <b>Settings</b> tab click <b>Download natural voice</b> (±139 MB) so payment announcements sound natural. Needs the internet once.</li>
       </ol>
 
       <h2>Day-to-day use</h2>
@@ -203,7 +214,7 @@
         <li><code>speak</code>: announce a successful payment through the speakers. <code>method</code>: <code>cash</code>/<code>edc</code>/<code>qris</code>, <code>amount</code> a positive number. Played with a leading coin chime; <code>ok</code> is sent without waiting for the speech to finish.</li>
       </ul>
       <pre><code>{"type":"ping"}
-→ {"ok":true,"version":"0.3.0","monitor":true}
+→ {"ok":true,"version":"0.4.0","monitor":true}
 
 {"type":"open","url":"https://pos.example.com/customer-display"}
 → {"ok":true}
@@ -217,7 +228,7 @@
 // failure example
 → {"ok":false,"error":"Address does not belong to this POS site"}</code></pre>
       <p><code>close</code> also forgets the last address, so the display does not reappear at the next login until the POS sends <code>open</code> again.</p>
-      <p>The word QRIS is pronounced like &quot;keris&quot; (the traditional dagger). The natural Supertonic 3 Indonesian voice is used when the <code>tts-model</code> folder exists in the app config folder; otherwise the OS TTS engine is used. See the project README for installing the model.</p>
+      <p>The word QRIS is pronounced like &quot;keris&quot; (the traditional dagger). The natural Supertonic 3 Indonesian voice is used when the <code>tts-model</code> folder exists in the app config folder; otherwise the OS TTS engine is used. The model can be downloaded via the button in the Settings tab.</p>
     </div>
   </section>
 </main>
@@ -240,6 +251,19 @@
       autostart: 'Jalankan otomatis saat login',
       autostart_hint: 'Agar layar pelanggan langsung tampil setelah PC dinyalakan.',
       autostart_dev: 'Build pengembangan (dev) tidak mengubah pengaturan mulai otomatis sistem.',
+      sec_voice: 'Suara',
+      voice_checking: 'Memeriksa model suara natural…',
+      voice_installed: 'Suara natural terpasang. Pengumuman pembayaran memakai suara Supertonic.',
+      voice_missing: 'Model suara natural belum terpasang. Tanpa model, suara mengikuti TTS OS.',
+      voice_download: 'Unduh suara natural (~139 MB)',
+      voice_cancel: 'Batalkan',
+      voice_hint: 'Suara offline untuk pengumuman pembayaran; QRIS diucapkan "keris". Model: Supertonic 3 Bahasa Indonesia, lisensi OpenRAIL-M.',
+      voice_downloading: 'Mengunduh',
+      voice_extracting: 'Mengekstrak arsip…',
+      voice_done: 'Selesai! Pengumuman berikutnya memakai suara natural.',
+      voice_error: 'Gagal: ',
+      voice_cancelled: 'Dibatalkan.',
+      voice_retry: 'Unduhan gagal. Periksa internet lalu coba lagi.',
       save: 'Simpan', refresh: 'Muat ulang daftar monitor',
       saved: 'Tersimpan.', saved_conn: 'Tersimpan. Pastikan halaman POS memakai port yang sama.', refreshed: 'Daftar monitor dimuat ulang.',
     },
@@ -256,6 +280,19 @@
       autostart: 'Start automatically at login',
       autostart_hint: 'So the customer display shows right after the PC starts.',
       autostart_dev: 'Development builds do not change the system start-on-login setting.',
+      sec_voice: 'Voice',
+      voice_checking: 'Checking the natural voice model…',
+      voice_installed: 'Natural voice installed. Payment announcements use the Supertonic voice.',
+      voice_missing: 'The natural voice model is not installed. Without it, the OS TTS engine is used.',
+      voice_download: 'Download natural voice (~139 MB)',
+      voice_cancel: 'Cancel',
+      voice_hint: 'Offline voice for payment announcements; QRIS is pronounced like "keris". Model: Supertonic 3 Indonesian, OpenRAIL-M licensed.',
+      voice_downloading: 'Downloading',
+      voice_extracting: 'Extracting archive…',
+      voice_done: 'Done! The next announcement uses the natural voice.',
+      voice_error: 'Failed: ',
+      voice_cancelled: 'Cancelled.',
+      voice_retry: 'Download failed. Check the internet connection and try again.',
       save: 'Save', refresh: 'Reload monitor list',
       saved: 'Saved.', saved_conn: 'Saved. Make sure the POS page uses the same port.', refreshed: 'Monitor list reloaded.',
     },
@@ -336,7 +373,67 @@
     fillMonitors(settings.display.monitor);
     render();
     syncDerived();
+    voiceStatus();
   }
+
+  async function voiceStatus() {
+    try {
+      const s = await invoke('voice_model_status');
+      const t = T[lang()];
+      $('voice-status').textContent = s.installed ? t.voice_installed : t.voice_missing;
+      $('voice-download').hidden = s.installed;
+      if (s.installed) {
+        $('voice-cancel').hidden = true;
+        $('voice-progress').hidden = true;
+      }
+    } catch (e) {
+      $('voice-status').textContent = String(e);
+    }
+  }
+
+  $('voice-download').onclick = async () => {
+    try {
+      await invoke('download_voice_model');
+    } catch (e) {
+      $('voice-status').textContent = String(e);
+      return;
+    }
+    while (true) {
+      const p = await invoke('voice_download_progress');
+      const busy = p.phase === 'downloading' || p.phase === 'extracting';
+      $('voice-download').hidden = busy;
+      $('voice-cancel').hidden = !busy;
+      $('voice-progress').hidden = p.phase !== 'downloading';
+      if (p.phase === 'downloading') {
+        const pct = p.total ? Math.round((p.downloaded / p.total) * 100) : 0;
+        $('voice-progress').value = pct;
+        $('voice-status').textContent = `${T[lang()].voice_downloading} ${pct}% (${(p.downloaded / 1048576).toFixed(0)} / ${(p.total / 1048576).toFixed(0)} MB)`;
+      } else if (p.phase === 'extracting') {
+        $('voice-status').textContent = T[lang()].voice_extracting;
+      } else if (p.phase === 'done') {
+        $('voice-status').textContent = T[lang()].voice_done;
+        $('voice-progress').hidden = true;
+        $('voice-cancel').hidden = true;
+        $('voice-download').hidden = true;
+        return;
+      } else if (p.phase === 'cancelled') {
+        $('voice-status').textContent = T[lang()].voice_cancelled;
+        $('voice-progress').hidden = true;
+        $('voice-cancel').hidden = true;
+        $('voice-download').hidden = false;
+        return;
+      } else if (p.phase === 'error') {
+        $('voice-status').textContent = T[lang()].voice_error + (p.error ?? T[lang()].voice_retry);
+        $('voice-progress').hidden = true;
+        $('voice-cancel').hidden = true;
+        $('voice-download').hidden = false;
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  };
+
+  $('voice-cancel').onclick = () => invoke('cancel_voice_download');
 
   async function save() {
     const connChanged = $('host').value.trim() !== loaded.host || Number($('port').value) !== loaded.port;

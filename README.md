@@ -29,7 +29,7 @@ Pesan JSON lewat WebSocket / JSON messages over the WebSocket:
 
 ```json
 {"type":"ping"}
-{"ok":true,"version":"0.3.0","monitor":true}
+{"ok":true,"version":"0.4.0","monitor":true}
 
 {"type":"open","url":"https://pos.example.com/customer-display"}
 {"ok":true}
@@ -68,6 +68,10 @@ Kata QRIS sengaja ditulis "keris" agar mesin suara melafalkannya seperti senjata
 #### Cara memasang model suara natural (opsional, disarankan) / How to install the natural voice model (optional, recommended)
 
 Aplikasi memakai suara natural **Supertonic 3 Bahasa Indonesia** bila modelnya tersedia; tanpa model, jatuh ke mesin TTS OS. / The app uses the natural **Supertonic 3 Indonesian** voice when the model is present; otherwise it falls back to the OS TTS engine.
+
+**Cara termudah:** buka **Pengaturan** di aplikasi lalu klik tombol **Unduh suara natural (~139 MB)**. Progres tampil di situ; butuh internet sekali saja. / **Easiest way:** open **Settings** in the app and click the **Download natural voice (~139 MB)** button. Progress is shown there; needs the internet once.
+
+Cara manual (tanpa tombol): / Manual steps (without the button):
 
 ```sh
 # Linux (jalankan sebagai pengguna yang sama dengan yang menjalankan aplikasi / run as the same user that runs the app)

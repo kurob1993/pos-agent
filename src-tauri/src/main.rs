@@ -32,6 +32,7 @@ use tungstenite::{
 };
 
 mod audio;
+mod model;
 mod voice;
 
 /// Alamat dan port bawaan WebSocket; halaman POS harus memakai port yang sama.
@@ -419,6 +420,36 @@ fn save_settings(window: WebviewWindow, app: AppHandle, settings: Settings) -> R
     reposition(&app)
 }
 
+/// Status model suara natural untuk tombol di Pengaturan.
+#[tauri::command]
+fn voice_model_status(window: WebviewWindow, app: AppHandle) -> Result<Value, String> {
+    only_settings(&window)?;
+    let installed = audio::find_model_dir(&model_dir_candidates(&app)).is_some();
+    Ok(json!({ "installed": installed }))
+}
+
+/// Mulai unduh model suara natural; berjalan di thread terpisah.
+#[tauri::command]
+fn download_voice_model(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+    only_settings(&window)?;
+    model::start_download(&app, &app.state::<model::DownloadState>())
+}
+
+/// Baca progres unduhan model (dipolling oleh UI Pengaturan).
+#[tauri::command]
+fn voice_download_progress(window: WebviewWindow, app: AppHandle) -> Result<model::Progress, String> {
+    only_settings(&window)?;
+    Ok(model::progress(&app.state::<model::DownloadState>()))
+}
+
+/// Batalkan unduhan model yang sedang berjalan.
+#[tauri::command]
+fn cancel_voice_download(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+    only_settings(&window)?;
+    app.state::<model::DownloadState>().request_cancel();
+    Ok(())
+}
+
 fn is_allowed(app: &AppHandle, origin: &str) -> bool {
     app.state::<Mutex<Config>>().lock().unwrap().origins.iter().any(|o| o == origin)
 }
@@ -563,7 +594,14 @@ fn main() {
     std::env::set_var("GDK_BACKEND", "x11");
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_settings, save_settings])
+        .invoke_handler(tauri::generate_handler![
+            get_settings,
+            save_settings,
+            voice_model_status,
+            download_voice_model,
+            voice_download_progress,
+            cancel_voice_download
+        ])
         .plugin(tauri_plugin_single_instance::init(|_, _, _| {}))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
@@ -577,6 +615,7 @@ fn main() {
             let (host, port, autostart) = (config.host.clone(), config.port, config.autostart);
             app.manage(Mutex::new(config));
             app.manage(Server::default());
+            app.manage(model::DownloadState::default());
 
             let _ = apply_autostart(&handle, autostart);
 

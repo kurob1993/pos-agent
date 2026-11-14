@@ -1,6 +1,6 @@
 [package]
 name = "layar-pelanggan"
-version = "0.3.0"
+version = "0.4.0"
 description = "Layar pelanggan POS di monitor kedua"
 edition = "2021"
 
@@ -20,6 +20,9 @@ tts = "0.26"
 sherpa-onnx = "2.0.1"
 rodio = { version = "0.23", default-features = false, features = ["playback"] }
 hound = "3"
+ureq = "2"
+tar = "0.4"
+bzip2 = { version = "0.5", default-features = false, features = ["libbz2-rs-sys"] }
 
 [profile.release]
 strip = true
