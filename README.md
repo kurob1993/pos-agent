@@ -29,7 +29,7 @@ Pesan JSON lewat WebSocket / JSON messages over the WebSocket:
 
 ```json
 {"type":"ping"}
-{"ok":true,"version":"0.4.0","monitor":true}
+{"ok":true,"version":"0.4.1","monitor":true}
 
 {"type":"open","url":"https://pos.example.com/customer-display"}
 {"ok":true}

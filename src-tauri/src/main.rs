@@ -450,6 +450,17 @@ fn cancel_voice_download(window: WebviewWindow, app: AppHandle) -> Result<(), St
     Ok(())
 }
 
+/// Putar contoh pengumuman pembayaran dari Pengaturan: koin + suara.
+#[tauri::command]
+fn test_voice(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+    only_settings(&window)?;
+    let text = voice::payment_text(lang(&app), "qris", 25000.0)
+        .ok_or_else(|| "kalimat uji tidak sah".to_string())?;
+    // thread terpisah agar UI tidak membeku selama sintesis
+    thread::spawn(move || speak_text(&app, &text));
+    Ok(())
+}
+
 fn is_allowed(app: &AppHandle, origin: &str) -> bool {
     app.state::<Mutex<Config>>().lock().unwrap().origins.iter().any(|o| o == origin)
 }
@@ -600,7 +611,8 @@ fn main() {
             voice_model_status,
             download_voice_model,
             voice_download_progress,
-            cancel_voice_download
+            cancel_voice_download,
+            test_voice
         ])
         .plugin(tauri_plugin_single_instance::init(|_, _, _| {}))
         .plugin(tauri_plugin_dialog::init())

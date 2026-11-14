@@ -103,6 +103,7 @@
       <p class="hint" id="voice-status" data-i18n="voice_checking"></p>
       <div class="row" style="margin-top: 8px">
         <button id="voice-download" class="primary" data-i18n="voice_download" style="flex: 1"></button>
+        <button id="voice-test" class="ghost" data-i18n="voice_test" style="flex: 0 0 auto"></button>
         <button id="voice-cancel" class="ghost" data-i18n="voice_cancel" hidden style="flex: 0 0 auto"></button>
       </div>
       <progress id="voice-progress" max="100" value="0" style="width: 100%; margin-top: 8px" hidden></progress>
@@ -156,7 +157,7 @@
         <li><code>speak</code>: umumkan pembayaran berhasil lewat speaker. <code>method</code>: <code>cash</code>/<code>edc</code>/<code>qris</code>, <code>amount</code> angka positif. Diputar dengan denting koin di depan; <code>ok</code> dikirim tanpa menunggu suara selesai.</li>
       </ul>
       <pre><code>{"type":"ping"}
-→ {"ok":true,"version":"0.4.0","monitor":true}
+→ {"ok":true,"version":"0.4.1","monitor":true}
 
 {"type":"open","url":"https://pos.contoh.com/layar-pelanggan"}
 → {"ok":true}
@@ -214,7 +215,7 @@
         <li><code>speak</code>: announce a successful payment through the speakers. <code>method</code>: <code>cash</code>/<code>edc</code>/<code>qris</code>, <code>amount</code> a positive number. Played with a leading coin chime; <code>ok</code> is sent without waiting for the speech to finish.</li>
       </ul>
       <pre><code>{"type":"ping"}
-→ {"ok":true,"version":"0.4.0","monitor":true}
+→ {"ok":true,"version":"0.4.1","monitor":true}
 
 {"type":"open","url":"https://pos.example.com/customer-display"}
 → {"ok":true}
@@ -264,6 +265,7 @@
       voice_error: 'Gagal: ',
       voice_cancelled: 'Dibatalkan.',
       voice_retry: 'Unduhan gagal. Periksa internet lalu coba lagi.',
+      voice_test: 'Test suara',
       save: 'Simpan', refresh: 'Muat ulang daftar monitor',
       saved: 'Tersimpan.', saved_conn: 'Tersimpan. Pastikan halaman POS memakai port yang sama.', refreshed: 'Daftar monitor dimuat ulang.',
     },
@@ -293,6 +295,7 @@
       voice_error: 'Failed: ',
       voice_cancelled: 'Cancelled.',
       voice_retry: 'Download failed. Check the internet connection and try again.',
+      voice_test: 'Test voice',
       save: 'Save', refresh: 'Reload monitor list',
       saved: 'Saved.', saved_conn: 'Saved. Make sure the POS page uses the same port.', refreshed: 'Monitor list reloaded.',
     },
@@ -386,6 +389,7 @@
         $('voice-cancel').hidden = true;
         $('voice-progress').hidden = true;
       }
+      $('voice-test').hidden = false;
     } catch (e) {
       $('voice-status').textContent = String(e);
     }
@@ -402,6 +406,7 @@
       const p = await invoke('voice_download_progress');
       const busy = p.phase === 'downloading' || p.phase === 'extracting';
       $('voice-download').hidden = busy;
+      $('voice-test').hidden = busy;
       $('voice-cancel').hidden = !busy;
       $('voice-progress').hidden = p.phase !== 'downloading';
       if (p.phase === 'downloading') {
@@ -415,18 +420,21 @@
         $('voice-progress').hidden = true;
         $('voice-cancel').hidden = true;
         $('voice-download').hidden = true;
+        $('voice-test').hidden = false;
         return;
       } else if (p.phase === 'cancelled') {
         $('voice-status').textContent = T[lang()].voice_cancelled;
         $('voice-progress').hidden = true;
         $('voice-cancel').hidden = true;
         $('voice-download').hidden = false;
+        $('voice-test').hidden = false;
         return;
       } else if (p.phase === 'error') {
         $('voice-status').textContent = T[lang()].voice_error + (p.error ?? T[lang()].voice_retry);
         $('voice-progress').hidden = true;
         $('voice-cancel').hidden = true;
         $('voice-download').hidden = false;
+        $('voice-test').hidden = false;
         return;
       }
       await new Promise((r) => setTimeout(r, 500));
@@ -434,6 +442,8 @@
   };
 
   $('voice-cancel').onclick = () => invoke('cancel_voice_download');
+
+  $('voice-test').onclick = () => invoke('test_voice');
 
   async function save() {
     const connChanged = $('host').value.trim() !== loaded.host || Number($('port').value) !== loaded.port;
