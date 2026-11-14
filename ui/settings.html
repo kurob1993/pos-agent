@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="id">
+<meta charset="utf-8">
+<title>Pengaturan Layar Pelanggan</title>
+<style>
+  body { margin: 0; padding: 24px; background: #0b3b4a; color: #fff; font: 14px system-ui; }
+  h1 { margin: 0 0 20px; font-size: 18px; }
+  fieldset { border: 0; margin: 0 0 20px; padding: 0; }
+  legend, label.title { display: block; margin-bottom: 8px; font-weight: 600; }
+  select, input[type=number] { width: 100%; box-sizing: border-box; padding: 8px; border: 0; border-radius: 6px; font: inherit; }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  .mode label { display: block; margin-bottom: 6px; }
+  input:disabled { opacity: .5; }
+  button { padding: 10px 20px; border: 0; border-radius: 6px; background: #19b6d8; color: #04222b; font: 600 14px system-ui; cursor: pointer; }
+  button.ghost { margin-left: 8px; background: transparent; color: #fff; outline: 1px solid #ffffff55; }
+  #status { margin-top: 14px; min-height: 1.2em; }
+  .error { color: #ffb4a8; }
+</style>
+<body>
+  <h1>Pengaturan Layar Pelanggan</h1>
+
+  <fieldset>
+    <label class="title" for="monitor">Monitor</label>
+    <select id="monitor"></select>
+  </fieldset>
+
+  <fieldset class="mode">
+    <legend>Mode jendela</legend>
+    <label><input type="radio" name="mode" value="fullscreen"> Layar penuh</label>
+    <label><input type="radio" name="mode" value="window"> Jendela (di tengah monitor)</label>
+  </fieldset>
+
+  <fieldset class="row">
+    <div>
+      <label class="title" for="width">Lebar (piksel)</label>
+      <input id="width" type="number" min="320" max="7680" step="10">
+    </div>
+    <div>
+      <label class="title" for="height">Tinggi (piksel)</label>
+      <input id="height" type="number" min="240" max="4320" step="10">
+    </div>
+  </fieldset>
+
+  <button id="save">Simpan</button>
+  <button id="refresh" class="ghost">Muat ulang daftar monitor</button>
+  <div id="status"></div>
+
+  <script>
+    const { invoke } = window.__TAURI__.core;
+    const $ = (id) => document.getElementById(id);
+    const modes = document.querySelectorAll('input[name=mode]');
+    const isFullscreen = () => document.querySelector('input[name=mode]:checked').value === 'fullscreen';
+
+    function say(text, error = false) {
+      $('status').textContent = text;
+      $('status').className = error ? 'error' : '';
+    }
+
+    function syncSize() {
+      $('width').disabled = $('height').disabled = isFullscreen();
+    }
+
+    async function load() {
+      const { monitors, settings } = await invoke('get_settings');
+      const select = $('monitor');
+      select.replaceChildren(new Option('Otomatis (monitor kedua)', ''));
+      monitors.forEach((m, i) => {
+        const label = `${i + 1}. ${m.key} — ${m.width}×${m.height}${m.primary ? ' (utama)' : ''}`;
+        select.add(new Option(label, m.key));
+      });
+      // Monitor pilihan yang sedang tidak tersambung tetap ditampilkan agar pilihannya tidak hilang diam-diam
+      if (settings.monitor && !monitors.some((m) => m.key === settings.monitor)) {
+        select.add(new Option(`${settings.monitor} (tidak tersambung)`, settings.monitor));
+      }
+      select.value = settings.monitor ?? '';
+      document.querySelector(`input[name=mode][value=${settings.fullscreen ? 'fullscreen' : 'window'}]`).checked = true;
+      $('width').value = settings.width;
+      $('height').value = settings.height;
+      syncSize();
+    }
+
+    $('save').onclick = async () => {
+      try {
+        await invoke('save_settings', {
+          settings: {
+            monitor: $('monitor').value || null,
+            fullscreen: isFullscreen(),
+            width: Number($('width').value) || 1280,
+            height: Number($('height').value) || 720,
+          },
+        });
+        say('Tersimpan.');
+      } catch (error) {
+        say(String(error), true);
+      }
+    };
+    $('refresh').onclick = () => load().then(() => say('Daftar monitor dimuat ulang.'), (e) => say(String(e), true));
+    modes.forEach((radio) => radio.addEventListener('change', syncSize));
+    load().catch((e) => say(String(e), true));
+  </script>
+</body>
+</html>

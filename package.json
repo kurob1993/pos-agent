@@ -1,0 +1,13 @@
+{
+  "name": "layar-pelanggan",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:linux": "tauri build --bundles deb,rpm,appimage"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}
