@@ -1,103 +1,360 @@
 <!doctype html>
 <html lang="id">
 <meta charset="utf-8">
-<title>Pengaturan Layar Pelanggan</title>
+<title>Layar Pelanggan</title>
 <style>
-  body { margin: 0; padding: 24px; background: #0b3b4a; color: #fff; font: 14px system-ui; }
-  h1 { margin: 0 0 20px; font-size: 18px; }
-  fieldset { border: 0; margin: 0 0 20px; padding: 0; }
-  legend, label.title { display: block; margin-bottom: 8px; font-weight: 600; }
-  select, input[type=number] { width: 100%; box-sizing: border-box; padding: 8px; border: 0; border-radius: 6px; font: inherit; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b3b4a; color: #fff; font: 14px/1.5 system-ui; }
+  main { padding: 20px 24px 28px; }
+  h1 { margin: 0 0 14px; font-size: 18px; }
+  h2 { margin: 22px 0 10px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #8fd3e4; }
+  h3 { margin: 18px 0 6px; font-size: 14px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 4px; border-bottom: 1px solid #ffffff33; }
+  .tabs button { padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; background: none; color: #ffffffb3; font: 600 14px system-ui; cursor: pointer; }
+  .tabs button[aria-selected=true] { color: #fff; border-bottom-color: #19b6d8; }
+  fieldset { border: 0; margin: 0 0 14px; padding: 0; }
+  legend, label.title { display: block; margin-bottom: 6px; font-weight: 600; }
+  select, input[type=number], input[type=text] { width: 100%; padding: 8px; border: 0; border-radius: 6px; font: inherit; }
   .row { display: flex; gap: 12px; }
   .row > div { flex: 1; }
-  .mode label { display: block; margin-bottom: 6px; }
+  .check { display: block; margin-bottom: 6px; font-weight: 400; }
   input:disabled { opacity: .5; }
-  button { padding: 10px 20px; border: 0; border-radius: 6px; background: #19b6d8; color: #04222b; font: 600 14px system-ui; cursor: pointer; }
-  button.ghost { margin-left: 8px; background: transparent; color: #fff; outline: 1px solid #ffffff55; }
-  #status { margin-top: 14px; min-height: 1.2em; }
+  .hint { margin: 4px 0 0; font-size: 12px; color: #ffffffa6; }
+  .warn { margin: 8px 0 0; padding: 8px 10px; border-radius: 6px; background: #7a4b00; font-size: 13px; }
+  .alert { margin-bottom: 14px; padding: 10px 12px; border-radius: 6px; background: #8c2f1f; }
+  button.primary { padding: 10px 20px; border: 0; border-radius: 6px; background: #19b6d8; color: #04222b; font: 600 14px system-ui; cursor: pointer; }
+  button.ghost { margin-left: 8px; padding: 10px 16px; border: 0; border-radius: 6px; background: transparent; color: #fff; outline: 1px solid #ffffff55; font: 14px system-ui; cursor: pointer; }
+  #status { margin-top: 14px; min-height: 1.4em; }
   .error { color: #ffb4a8; }
+  ol { padding-left: 20px; }
+  li { margin-bottom: 6px; }
+  code, pre { font-family: ui-monospace, monospace; font-size: 12.5px; }
+  code { padding: 1px 5px; border-radius: 4px; background: #00000040; }
+  pre { margin: 6px 0; padding: 10px 12px; border-radius: 6px; background: #00000040; overflow-x: auto; }
+  pre code { padding: 0; background: none; }
+  [hidden] { display: none !important; }
 </style>
 <body>
-  <h1>Pengaturan Layar Pelanggan</h1>
+<main>
+  <h1 data-i18n="title"></h1>
 
-  <fieldset>
-    <label class="title" for="monitor">Monitor</label>
-    <select id="monitor"></select>
-  </fieldset>
+  <div class="tabs" role="tablist">
+    <button id="tab-settings" role="tab" aria-selected="true" data-i18n="tab_settings"></button>
+    <button id="tab-usage" role="tab" aria-selected="false" data-i18n="tab_usage"></button>
+  </div>
 
-  <fieldset class="mode">
-    <legend>Mode jendela</legend>
-    <label><input type="radio" name="mode" value="fullscreen"> Layar penuh</label>
-    <label><input type="radio" name="mode" value="window"> Jendela (di tengah monitor)</label>
-  </fieldset>
+  <section id="panel-settings">
+    <div id="listener-error" class="alert" hidden></div>
 
-  <fieldset class="row">
-    <div>
-      <label class="title" for="width">Lebar (piksel)</label>
-      <input id="width" type="number" min="320" max="7680" step="10">
+    <h2 data-i18n="sec_display"></h2>
+    <fieldset>
+      <label class="title" for="monitor" data-i18n="monitor"></label>
+      <select id="monitor"></select>
+    </fieldset>
+
+    <fieldset>
+      <legend data-i18n="mode"></legend>
+      <label class="check"><input type="radio" name="mode" value="fullscreen"> <span data-i18n="mode_full"></span></label>
+      <label class="check"><input type="radio" name="mode" value="window"> <span data-i18n="mode_window"></span></label>
+    </fieldset>
+
+    <fieldset class="row">
+      <div>
+        <label class="title" for="width" data-i18n="width"></label>
+        <input id="width" type="number" min="320" max="7680" step="10">
+      </div>
+      <div>
+        <label class="title" for="height" data-i18n="height"></label>
+        <input id="height" type="number" min="240" max="4320" step="10">
+      </div>
+    </fieldset>
+
+    <h2 data-i18n="sec_connection"></h2>
+    <fieldset class="row">
+      <div>
+        <label class="title" for="host" data-i18n="host"></label>
+        <input id="host" type="text" spellcheck="false" autocomplete="off">
+      </div>
+      <div style="flex: 0 0 120px">
+        <label class="title" for="port" data-i18n="port"></label>
+        <input id="port" type="number" min="1024" max="65535">
+      </div>
+    </fieldset>
+    <p class="hint" data-i18n="conn_hint" style="margin-top: -6px"></p>
+    <div id="warn-exposed" class="warn" data-i18n="warn_exposed" hidden></div>
+
+    <h2 data-i18n="sec_general"></h2>
+    <fieldset>
+      <label class="title" for="language" data-i18n="language"></label>
+      <select id="language">
+        <option value="" data-i18n="lang_auto"></option>
+        <option value="id">Bahasa Indonesia</option>
+        <option value="en">English</option>
+      </select>
+    </fieldset>
+    <fieldset>
+      <label class="check"><input id="autostart" type="checkbox"> <span data-i18n="autostart"></span></label>
+      <p class="hint" data-i18n="autostart_hint"></p>
+      <p class="hint" id="autostart-dev" data-i18n="autostart_dev" hidden></p>
+    </fieldset>
+
+    <button id="save" class="primary" data-i18n="save"></button>
+    <button id="refresh" class="ghost" data-i18n="refresh"></button>
+    <div id="status" role="status"></div>
+  </section>
+
+  <section id="panel-usage" hidden>
+    <div data-lang="id">
+      <h2>Pemasangan pertama</h2>
+      <ol>
+        <li>Hubungkan monitor kedua ke PC kasir, lalu atur layar ke mode <b>Extend</b> (perluas), bukan Duplicate/Mirror.</li>
+        <li>Jalankan aplikasi ini. Ikonnya muncul di system tray (dekat jam). Klik kanan ikon untuk <b>Pengaturan</b>, <b>Tampilkan ulang</b>, atau <b>Keluar</b>.</li>
+        <li>Di tab <b>Pengaturan</b>, pilih monitor dan mode jendela, lalu klik <b>Simpan</b>. Bawaannya layar penuh di monitor kedua.</li>
+        <li>Buka halaman kasir (POS) di browser dan buka layar pelanggan dari sana. Halaman POS terhubung ke <code>ws://<span class="addr"></span></code> dan mengirim alamat layar pelanggan.</li>
+        <li>Pertama kali, muncul dialog izin untuk situs POS. Pilih <b>Izinkan</b>. Izin tersimpan, jadi tidak ditanya lagi untuk situs yang sama.</li>
+      </ol>
+
+      <h2>Pemakaian sehari-hari</h2>
+      <ul>
+        <li>Layar pelanggan tampil di monitor yang dipilih setiap kali POS mengirim alamatnya.</li>
+        <li>Alamat terakhir diingat. Saat PC menyala, layar langsung tampil walau halaman kasir belum dibuka. Jika monitor belum siap, aplikasi mencoba lagi sampai sekitar 30 detik.</li>
+        <li>Jendela tertutup atau berpindah? Klik kanan ikon tray lalu pilih <b>Tampilkan ulang</b>.</li>
+        <li>Perubahan di tab Pengaturan langsung berlaku tanpa memuat ulang halaman POS.</li>
+        <li>Menutup jendela Pengaturan tidak menghentikan aplikasi. Untuk berhenti, pilih <b>Keluar</b> di menu tray.</li>
+      </ul>
+
+      <h2>Jika bermasalah</h2>
+      <ul>
+        <li><b>Monitor kedua tidak terdeteksi:</b> periksa kabel dan pastikan layar dalam mode Extend, atau pilih monitor secara manual di Pengaturan.</li>
+        <li><b>Layar tampil di monitor yang salah:</b> pilih monitornya di Pengaturan, bukan &quot;Otomatis&quot;.</li>
+        <li><b>Tidak bisa memakai host:port:</b> port sedang dipakai program lain. Ganti port di sini dan di halaman POS.</li>
+        <li><b>POS tidak tersambung:</b> port di aplikasi ini dan di halaman POS harus sama (sekarang <code><span class="port"></span></code>).</li>
+        <li><b>&quot;Situs ini ditolak&quot;:</b> Anda memilih Tolak pada dialog izin. Pilihan itu tidak disimpan, jadi kirim ulang dari POS dan pilih <b>Izinkan</b>.</li>
+        <li><b>Ikon tray tidak terlihat (Linux GNOME):</b> pasang ekstensi &quot;AppIndicator and KStatusNotifierItem Support&quot;.</li>
+      </ul>
+
+      <h2>Untuk pengembang POS</h2>
+      <p>Kirim pesan JSON lewat WebSocket. Setiap pesan dibalas satu JSON berisi <code>ok</code>; jika gagal, ada juga <code>error</code>.</p>
+      <ul>
+        <li><code>ping</code>: cek aplikasi. Balasan memuat <code>version</code> dan <code>monitor</code> (apakah monitor tujuan terdeteksi).</li>
+        <li><code>open</code>: tampilkan layar pelanggan. <code>url</code> harus berasal dari situs (origin) yang sama dengan halaman pengirim. Situs baru memicu dialog izin.</li>
+        <li><code>close</code>: tutup layar pelanggan. Hanya untuk situs yang sudah diizinkan, dan tidak memicu dialog.</li>
+      </ul>
+      <pre><code>{"type":"ping"}
+→ {"ok":true,"version":"0.1.0","monitor":true}
+
+{"type":"open","url":"https://pos.contoh.com/layar-pelanggan"}
+→ {"ok":true}
+
+{"type":"close"}
+→ {"ok":true}
+
+// contoh gagal
+→ {"ok":false,"error":"Alamat tidak berasal dari situs POS ini"}</code></pre>
+      <p><code>close</code> juga melupakan alamat terakhir, jadi layar tidak muncul lagi saat login berikutnya sampai POS mengirim <code>open</code> lagi.</p>
     </div>
-    <div>
-      <label class="title" for="height">Tinggi (piksel)</label>
-      <input id="height" type="number" min="240" max="4320" step="10">
+
+    <div data-lang="en" hidden>
+      <h2>First-time setup</h2>
+      <ol>
+        <li>Connect the second monitor to the cashier PC and set the displays to <b>Extend</b> mode, not Duplicate/Mirror.</li>
+        <li>Start this app. Its icon appears in the system tray (near the clock). Right-click the icon for <b>Settings</b>, <b>Show again</b>, or <b>Quit</b>.</li>
+        <li>In the <b>Settings</b> tab, choose the monitor and window mode, then click <b>Save</b>. The default is fullscreen on the second monitor.</li>
+        <li>Open the cashier (POS) page in a browser and open the customer display from there. The POS page connects to <code>ws://<span class="addr"></span></code> and sends the customer display address.</li>
+        <li>The first time, a permission dialog appears for the POS site. Choose <b>Allow</b>. The choice is saved, so you won't be asked again for the same site.</li>
+      </ol>
+
+      <h2>Day-to-day use</h2>
+      <ul>
+        <li>The customer display shows on the chosen monitor whenever the POS sends its address.</li>
+        <li>The last address is remembered. When the PC starts, the display shows up even before the cashier page is opened. If the monitor isn't ready yet, the app retries for about 30 seconds.</li>
+        <li>Window closed or moved? Right-click the tray icon and choose <b>Show again</b>.</li>
+        <li>Changes in the Settings tab apply immediately, without reloading the POS page.</li>
+        <li>Closing the Settings window does not stop the app. To stop it, choose <b>Quit</b> in the tray menu.</li>
+      </ul>
+
+      <h2>Troubleshooting</h2>
+      <ul>
+        <li><b>Second monitor not detected:</b> check the cable and that the displays are in Extend mode, or pick the monitor manually in Settings.</li>
+        <li><b>Display shows on the wrong monitor:</b> select the monitor in Settings instead of &quot;Automatic&quot;.</li>
+        <li><b>Cannot use host:port:</b> another program is using the port. Change the port here and on the POS page.</li>
+        <li><b>POS cannot connect:</b> the port in this app and in the POS page must match (currently <code><span class="port"></span></code>).</li>
+        <li><b>&quot;This site was denied&quot;:</b> you chose Deny in the permission dialog. That choice is not saved, so send it again from the POS and choose <b>Allow</b>.</li>
+        <li><b>Tray icon not visible (Linux GNOME):</b> install the &quot;AppIndicator and KStatusNotifierItem Support&quot; extension.</li>
+      </ul>
+
+      <h2>For POS developers</h2>
+      <p>Send JSON messages over the WebSocket. Each message gets one JSON reply containing <code>ok</code>; on failure it also has <code>error</code>.</p>
+      <ul>
+        <li><code>ping</code>: check the app. The reply includes <code>version</code> and <code>monitor</code> (whether the target monitor is detected).</li>
+        <li><code>open</code>: show the customer display. <code>url</code> must come from the same site (origin) as the sending page. A new site triggers the permission dialog.</li>
+        <li><code>close</code>: close the customer display. Only for already-allowed sites, and never shows a dialog.</li>
+      </ul>
+      <pre><code>{"type":"ping"}
+→ {"ok":true,"version":"0.1.0","monitor":true}
+
+{"type":"open","url":"https://pos.example.com/customer-display"}
+→ {"ok":true}
+
+{"type":"close"}
+→ {"ok":true}
+
+// failure example
+→ {"ok":false,"error":"Address does not belong to this POS site"}</code></pre>
+      <p><code>close</code> also forgets the last address, so the display does not reappear at the next login until the POS sends <code>open</code> again.</p>
     </div>
-  </fieldset>
+  </section>
+</main>
 
-  <button id="save">Simpan</button>
-  <button id="refresh" class="ghost">Muat ulang daftar monitor</button>
-  <div id="status"></div>
+<script>
+  const { invoke } = window.__TAURI__.core;
+  const $ = (id) => document.getElementById(id);
 
-  <script>
-    const { invoke } = window.__TAURI__.core;
-    const $ = (id) => document.getElementById(id);
-    const modes = document.querySelectorAll('input[name=mode]');
-    const isFullscreen = () => document.querySelector('input[name=mode]:checked').value === 'fullscreen';
+  const T = {
+    id: {
+      title: 'Layar Pelanggan', tab_settings: 'Pengaturan', tab_usage: 'Cara penggunaan',
+      sec_display: 'Tampilan', sec_connection: 'Koneksi', sec_general: 'Umum',
+      monitor: 'Monitor', monitor_auto: 'Otomatis (monitor kedua)', monitor_primary: 'utama', monitor_off: 'tidak tersambung',
+      mode: 'Mode jendela', mode_full: 'Layar penuh', mode_window: 'Jendela (di tengah monitor)',
+      width: 'Lebar (piksel)', height: 'Tinggi (piksel)',
+      host: 'Host', port: 'Port',
+      conn_hint: 'Alamat WebSocket yang didengarkan aplikasi. Bawaan 127.0.0.1:8183 (hanya PC ini). Halaman POS harus memakai port yang sama.',
+      warn_exposed: 'Host ini bisa dijangkau dari komputer lain di jaringan. Siapa pun di jaringan dapat mencoba mengirim perintah ke layar pelanggan. Gunakan 127.0.0.1 kecuali memang perlu.',
+      language: 'Bahasa', lang_auto: 'Otomatis (ikut sistem)',
+      autostart: 'Jalankan otomatis saat login',
+      autostart_hint: 'Agar layar pelanggan langsung tampil setelah PC dinyalakan.',
+      autostart_dev: 'Build pengembangan (dev) tidak mengubah pengaturan mulai otomatis sistem.',
+      save: 'Simpan', refresh: 'Muat ulang daftar monitor',
+      saved: 'Tersimpan.', saved_conn: 'Tersimpan. Pastikan halaman POS memakai port yang sama.', refreshed: 'Daftar monitor dimuat ulang.',
+    },
+    en: {
+      title: 'Customer Display', tab_settings: 'Settings', tab_usage: 'How to use',
+      sec_display: 'Display', sec_connection: 'Connection', sec_general: 'General',
+      monitor: 'Monitor', monitor_auto: 'Automatic (second monitor)', monitor_primary: 'primary', monitor_off: 'not connected',
+      mode: 'Window mode', mode_full: 'Fullscreen', mode_window: 'Window (centered on the monitor)',
+      width: 'Width (pixels)', height: 'Height (pixels)',
+      host: 'Host', port: 'Port',
+      conn_hint: 'WebSocket address the app listens on. Default 127.0.0.1:8183 (this PC only). The POS page must use the same port.',
+      warn_exposed: 'This host is reachable from other computers on the network. Anyone on the network can try to send commands to the customer display. Use 127.0.0.1 unless you really need this.',
+      language: 'Language', lang_auto: 'Automatic (follow system)',
+      autostart: 'Start automatically at login',
+      autostart_hint: 'So the customer display shows right after the PC starts.',
+      autostart_dev: 'Development builds do not change the system start-on-login setting.',
+      save: 'Save', refresh: 'Reload monitor list',
+      saved: 'Saved.', saved_conn: 'Saved. Make sure the POS page uses the same port.', refreshed: 'Monitor list reloaded.',
+    },
+  };
 
-    function say(text, error = false) {
-      $('status').textContent = text;
-      $('status').className = error ? 'error' : '';
+  let monitors = [];
+  let systemLang = 'id';
+  let loaded = { host: '', port: 0 };
+
+  const lang = () => $('language').value || systemLang;
+  const t = (key) => T[lang()][key];
+  const isFullscreen = () => document.querySelector('input[name=mode]:checked').value === 'fullscreen';
+  const isLoopback = (host) => host === 'localhost' || host === '::1' || host.startsWith('127.');
+
+  function say(text, error = false) {
+    $('status').textContent = text;
+    $('status').className = error ? 'error' : '';
+  }
+
+  function fillMonitors(selected) {
+    const select = $('monitor');
+    select.replaceChildren(new Option(t('monitor_auto'), ''));
+    monitors.forEach((m, i) => {
+      const primary = m.primary ? ` (${t('monitor_primary')})` : '';
+      select.add(new Option(`${i + 1}. ${m.key} — ${m.width}×${m.height}${primary}`, m.key));
+    });
+    // Monitor pilihan yang sedang tidak tersambung tetap ditampilkan agar pilihannya tidak hilang diam-diam
+    if (selected && !monitors.some((m) => m.key === selected)) {
+      select.add(new Option(`${selected} (${t('monitor_off')})`, selected));
     }
+    select.value = selected ?? '';
+  }
 
-    function syncSize() {
-      $('width').disabled = $('height').disabled = isFullscreen();
+  function syncDerived() {
+    $('width').disabled = $('height').disabled = isFullscreen();
+    const host = $('host').value.trim();
+    $('warn-exposed').hidden = !host || isLoopback(host);
+    // Untuk menyambung, alamat "semua antarmuka" dibuka lewat 127.0.0.1
+    let addr = ['', '0.0.0.0', '::'].includes(host) ? '127.0.0.1' : host;
+    if (addr.includes(':')) addr = `[${addr}]`;
+    document.querySelectorAll('.addr').forEach((el) => (el.textContent = `${addr}:${$('port').value}`));
+    document.querySelectorAll('.port').forEach((el) => (el.textContent = $('port').value));
+  }
+
+  function render() {
+    const l = lang();
+    document.documentElement.lang = l;
+    document.title = t('title');
+    document.querySelectorAll('[data-i18n]').forEach((el) => (el.textContent = T[l][el.dataset.i18n]));
+    document.querySelectorAll('[data-lang]').forEach((el) => (el.hidden = el.dataset.lang !== l));
+    fillMonitors($('monitor').value || null);
+  }
+
+  function showTab(name) {
+    for (const id of ['settings', 'usage']) {
+      $(`panel-${id}`).hidden = id !== name;
+      $(`tab-${id}`).setAttribute('aria-selected', String(id === name));
     }
+  }
 
-    async function load() {
-      const { monitors, settings } = await invoke('get_settings');
-      const select = $('monitor');
-      select.replaceChildren(new Option('Otomatis (monitor kedua)', ''));
-      monitors.forEach((m, i) => {
-        const label = `${i + 1}. ${m.key} — ${m.width}×${m.height}${m.primary ? ' (utama)' : ''}`;
-        select.add(new Option(label, m.key));
-      });
-      // Monitor pilihan yang sedang tidak tersambung tetap ditampilkan agar pilihannya tidak hilang diam-diam
-      if (settings.monitor && !monitors.some((m) => m.key === settings.monitor)) {
-        select.add(new Option(`${settings.monitor} (tidak tersambung)`, settings.monitor));
-      }
-      select.value = settings.monitor ?? '';
-      document.querySelector(`input[name=mode][value=${settings.fullscreen ? 'fullscreen' : 'window'}]`).checked = true;
-      $('width').value = settings.width;
-      $('height').value = settings.height;
-      syncSize();
-    }
+  async function load() {
+    const data = await invoke('get_settings');
+    const { settings } = data;
+    monitors = data.monitors;
+    systemLang = data.system_lang;
+    loaded = { host: settings.host, port: settings.port };
 
-    $('save').onclick = async () => {
-      try {
-        await invoke('save_settings', {
-          settings: {
+    $('language').value = settings.language ?? '';
+    document.querySelector(`input[name=mode][value=${settings.display.fullscreen ? 'fullscreen' : 'window'}]`).checked = true;
+    $('width').value = settings.display.width;
+    $('height').value = settings.display.height;
+    $('host').value = settings.host;
+    $('port').value = settings.port;
+    $('autostart').checked = settings.autostart;
+    $('autostart-dev').hidden = !data.dev;
+    $('listener-error').hidden = !data.listener_error;
+    $('listener-error').textContent = data.listener_error ?? '';
+    fillMonitors(settings.display.monitor);
+    render();
+    syncDerived();
+  }
+
+  async function save() {
+    const connChanged = $('host').value.trim() !== loaded.host || Number($('port').value) !== loaded.port;
+    try {
+      await invoke('save_settings', {
+        settings: {
+          display: {
             monitor: $('monitor').value || null,
             fullscreen: isFullscreen(),
             width: Number($('width').value) || 1280,
             height: Number($('height').value) || 720,
           },
-        });
-        say('Tersimpan.');
-      } catch (error) {
-        say(String(error), true);
-      }
-    };
-    $('refresh').onclick = () => load().then(() => say('Daftar monitor dimuat ulang.'), (e) => say(String(e), true));
-    modes.forEach((radio) => radio.addEventListener('change', syncSize));
-    load().catch((e) => say(String(e), true));
-  </script>
+          language: $('language').value || null,
+          host: $('host').value,
+          port: Number($('port').value) || 8183,
+          autostart: $('autostart').checked,
+        },
+      });
+      await load();
+      say(connChanged ? t('saved_conn') : t('saved'));
+    } catch (error) {
+      say(String(error), true);
+    }
+  }
+
+  $('save').onclick = save;
+  $('refresh').onclick = () => load().then(() => say(t('refreshed')), (e) => say(String(e), true));
+  $('tab-settings').onclick = () => showTab('settings');
+  $('tab-usage').onclick = () => showTab('usage');
+  $('language').addEventListener('change', render);
+  document.querySelectorAll('input[name=mode]').forEach((radio) => radio.addEventListener('change', syncDerived));
+  $('host').addEventListener('input', syncDerived);
+  $('port').addEventListener('input', syncDerived);
+  load().catch((e) => say(String(e), true));
+</script>
 </body>
 </html>
