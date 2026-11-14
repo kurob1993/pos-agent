@@ -31,11 +31,17 @@ use tungstenite::{
     Message,
 };
 
+mod audio;
+mod voice;
+
 /// Alamat dan port bawaan WebSocket; halaman POS harus memakai port yang sama.
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 8183;
 const WINDOW: &str = "display";
 const SETTINGS: &str = "settings";
+
+/// Efek suara denting koin yang diputar sebelum setiap pengumuman pembayaran.
+const COIN: &[u8] = include_bytes!("../assets/coin.wav");
 
 /// Pengaturan tampilan yang diubah lewat jendela Pengaturan.
 #[derive(Clone, Serialize, Deserialize)]
@@ -100,6 +106,8 @@ struct Settings {
 struct Server {
     generation: AtomicU64,
     error: Mutex<Option<String>>,
+    /// Kunci agar pengumuman suara tidak saling tumpang tindih; diambil saat sedang berbicara.
+    speaking: Mutex<()>,
 }
 
 /// Item menu tray, disimpan agar teksnya bisa diganti saat bahasa berubah.
@@ -477,8 +485,58 @@ fn respond(app: &AppHandle, origin: &str, request: &Value) -> Value {
             save_config(app, &config);
             json!({ "ok": true })
         }
+        Some("speak") => speak_payment(app, origin, request),
         _ => json!({ "ok": false, "error": tr(app, "Perintah tidak dikenal", "Unknown command") }),
     }
+}
+
+/// Ucapkan pengumuman pembayaran berhasil; suara diputar thread terpisah agar POS tidak menunggu.
+fn speak_payment(app: &AppHandle, origin: &str, request: &Value) -> Value {
+    if !is_allowed(app, origin) {
+        return json!({ "ok": false, "error": tr(app, "Situs ini belum diizinkan di aplikasi Layar Pelanggan", "This site is not yet allowed in the Customer Display app") });
+    }
+    let Some(amount) = request["amount"].as_f64() else {
+        return json!({ "ok": false, "error": tr(app, "Amount harus berupa angka", "Amount must be a number") });
+    };
+    let method = request["method"].as_str().unwrap_or_default();
+    let language = lang(app);
+    let Some(text) = voice::payment_text(language, method, amount) else {
+        return json!({ "ok": false, "error": tr(app, "Method harus cash, edc, atau qris, dan amount harus angka positif", "Method must be cash, edc, or qris, and amount must be a positive number") });
+    };
+    let app = app.clone();
+    thread::spawn(move || speak_text(&app, &text));
+    json!({ "ok": true })
+}
+
+/// Ucapkan pengumuman: denting koin + suara natural Supertonic bila model tersedia,
+/// selain itu jatuh ke mesin TTS OS.
+fn speak_text(app: &AppHandle, text: &str) {
+    // Antrekan bila ada pengumuman lain sedang berbicara
+    let server = app.state::<Server>();
+    let _guard = server.speaking.lock().unwrap();
+    let language = lang(app);
+    if let Some(model) = audio::find_model_dir(&model_dir_candidates(app)) {
+        if audio::speak_supertonic(&model, COIN, text) {
+            return;
+        }
+        eprintln!("Layar Pelanggan: gagal memuat model Supertonic, pakai TTS OS");
+    }
+    if audio::play_coin(COIN).is_ok() && audio::speak_os(language, text) {
+        return;
+    }
+    eprintln!("Layar Pelanggan: tidak ada mesin suara yang bisa dipakai");
+}
+
+/// Lokasi model Supertonic yang dicari: folder konfigurasi lalu folder resource aplikasi.
+fn model_dir_candidates(app: &AppHandle) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(dir) = app.path().app_config_dir().ok() {
+        dirs.push(dir.join("tts-model"));
+    }
+    if let Ok(dir) = app.path().resource_dir() {
+        dirs.push(dir.join("tts-model"));
+    }
+    dirs
 }
 
 fn serve(app: AppHandle, stream: TcpStream) {

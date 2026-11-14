@@ -112,11 +112,13 @@
         <li>Di tab <b>Pengaturan</b>, pilih monitor dan mode jendela, lalu klik <b>Simpan</b>. Bawaannya layar penuh di monitor kedua.</li>
         <li>Buka halaman kasir (POS) di browser dan buka layar pelanggan dari sana. Halaman POS terhubung ke <code>ws://<span class="addr"></span></code> dan mengirim alamat layar pelanggan.</li>
         <li>Pertama kali, muncul dialog izin untuk situs POS. Pilih <b>Izinkan</b>. Izin tersimpan, jadi tidak ditanya lagi untuk situs yang sama.</li>
+        <li>Opsional: pasang model suara natural Supertonic (±139 MB) supaya pengumuman pembayaran terdengar natural. Caranya ada di README proyek.</li>
       </ol>
 
       <h2>Pemakaian sehari-hari</h2>
       <ul>
         <li>Layar pelanggan tampil di monitor yang dipilih setiap kali POS mengirim alamatnya.</li>
+        <li>Setiap POS melaporkan pembayaran sukses, aplikasi memutar denting koin lalu suara &quot;Pembayaran berhasil …&quot; lewat speaker PC.</li>
         <li>Alamat terakhir diingat. Saat PC menyala, layar langsung tampil walau halaman kasir belum dibuka. Jika monitor belum siap, aplikasi mencoba lagi sampai sekitar 30 detik.</li>
         <li>Jendela tertutup atau berpindah? Klik kanan ikon tray lalu pilih <b>Tampilkan ulang</b>.</li>
         <li>Perubahan di tab Pengaturan langsung berlaku tanpa memuat ulang halaman POS.</li>
@@ -130,6 +132,7 @@
         <li><b>Tidak bisa memakai host:port:</b> port sedang dipakai program lain. Ganti port di sini dan di halaman POS.</li>
         <li><b>POS tidak tersambung:</b> port di aplikasi ini dan di halaman POS harus sama (sekarang <code><span class="port"></span></code>).</li>
         <li><b>&quot;Situs ini ditolak&quot;:</b> Anda memilih Tolak pada dialog izin. Pilihan itu tidak disimpan, jadi kirim ulang dari POS dan pilih <b>Izinkan</b>.</li>
+        <li><b>Tidak ada suara pengumuman:</b> periksa volume speaker. Suara natural butuh model Supertonic di folder konfigurasi aplikasi; tanpa model, suara mengikuti TTS OS (Windows perlu voice Bahasa Indonesia).</li>
         <li><b>Ikon tray tidak terlihat (Linux GNOME):</b> pasang ekstensi &quot;AppIndicator and KStatusNotifierItem Support&quot;.</li>
       </ul>
 
@@ -139,9 +142,10 @@
         <li><code>ping</code>: cek aplikasi. Balasan memuat <code>version</code> dan <code>monitor</code> (apakah monitor tujuan terdeteksi).</li>
         <li><code>open</code>: tampilkan layar pelanggan. <code>url</code> harus berasal dari situs (origin) yang sama dengan halaman pengirim. Situs baru memicu dialog izin.</li>
         <li><code>close</code>: tutup layar pelanggan. Hanya untuk situs yang sudah diizinkan, dan tidak memicu dialog.</li>
+        <li><code>speak</code>: umumkan pembayaran berhasil lewat speaker. <code>method</code>: <code>cash</code>/<code>edc</code>/<code>qris</code>, <code>amount</code> angka positif. Diputar dengan denting koin di depan; <code>ok</code> dikirim tanpa menunggu suara selesai.</li>
       </ul>
       <pre><code>{"type":"ping"}
-→ {"ok":true,"version":"0.1.0","monitor":true}
+→ {"ok":true,"version":"0.3.0","monitor":true}
 
 {"type":"open","url":"https://pos.contoh.com/layar-pelanggan"}
 → {"ok":true}
@@ -149,9 +153,13 @@
 {"type":"close"}
 → {"ok":true}
 
+{"type":"speak","method":"qris","amount":50000}
+→ {"ok":true}
+
 // contoh gagal
 → {"ok":false,"error":"Alamat tidak berasal dari situs POS ini"}</code></pre>
       <p><code>close</code> juga melupakan alamat terakhir, jadi layar tidak muncul lagi saat login berikutnya sampai POS mengirim <code>open</code> lagi.</p>
+      <p>Kata QRIS diucapkan &quot;keris&quot;. Suara natural Supertonic 3 Bahasa Indonesia dipakai bila folder <code>tts-model</code> ada di folder konfigurasi aplikasi; tanpa itu suara mengikuti TTS OS. Cara memasang model ada di README proyek.</p>
     </div>
 
     <div data-lang="en" hidden>
@@ -162,11 +170,13 @@
         <li>In the <b>Settings</b> tab, choose the monitor and window mode, then click <b>Save</b>. The default is fullscreen on the second monitor.</li>
         <li>Open the cashier (POS) page in a browser and open the customer display from there. The POS page connects to <code>ws://<span class="addr"></span></code> and sends the customer display address.</li>
         <li>The first time, a permission dialog appears for the POS site. Choose <b>Allow</b>. The choice is saved, so you won't be asked again for the same site.</li>
+        <li>Optional: install the Supertonic natural voice model (±139 MB) so payment announcements sound natural. See the project README for how.</li>
       </ol>
 
       <h2>Day-to-day use</h2>
       <ul>
         <li>The customer display shows on the chosen monitor whenever the POS sends its address.</li>
+        <li>Whenever the POS reports a successful payment, the app plays a coin chime followed by a &quot;Payment successful …&quot; announcement through the PC speakers.</li>
         <li>The last address is remembered. When the PC starts, the display shows up even before the cashier page is opened. If the monitor isn't ready yet, the app retries for about 30 seconds.</li>
         <li>Window closed or moved? Right-click the tray icon and choose <b>Show again</b>.</li>
         <li>Changes in the Settings tab apply immediately, without reloading the POS page.</li>
@@ -180,6 +190,7 @@
         <li><b>Cannot use host:port:</b> another program is using the port. Change the port here and on the POS page.</li>
         <li><b>POS cannot connect:</b> the port in this app and in the POS page must match (currently <code><span class="port"></span></code>).</li>
         <li><b>&quot;This site was denied&quot;:</b> you chose Deny in the permission dialog. That choice is not saved, so send it again from the POS and choose <b>Allow</b>.</li>
+        <li><b>No announcement sound:</b> check the speaker volume. The natural voice needs the Supertonic model in the app's config folder; without it, the OS TTS engine is used (needs an Indonesian voice on Windows).</li>
         <li><b>Tray icon not visible (Linux GNOME):</b> install the &quot;AppIndicator and KStatusNotifierItem Support&quot; extension.</li>
       </ul>
 
@@ -189,9 +200,10 @@
         <li><code>ping</code>: check the app. The reply includes <code>version</code> and <code>monitor</code> (whether the target monitor is detected).</li>
         <li><code>open</code>: show the customer display. <code>url</code> must come from the same site (origin) as the sending page. A new site triggers the permission dialog.</li>
         <li><code>close</code>: close the customer display. Only for already-allowed sites, and never shows a dialog.</li>
+        <li><code>speak</code>: announce a successful payment through the speakers. <code>method</code>: <code>cash</code>/<code>edc</code>/<code>qris</code>, <code>amount</code> a positive number. Played with a leading coin chime; <code>ok</code> is sent without waiting for the speech to finish.</li>
       </ul>
       <pre><code>{"type":"ping"}
-→ {"ok":true,"version":"0.1.0","monitor":true}
+→ {"ok":true,"version":"0.3.0","monitor":true}
 
 {"type":"open","url":"https://pos.example.com/customer-display"}
 → {"ok":true}
@@ -199,9 +211,13 @@
 {"type":"close"}
 → {"ok":true}
 
+{"type":"speak","method":"qris","amount":50000}
+→ {"ok":true}
+
 // failure example
 → {"ok":false,"error":"Address does not belong to this POS site"}</code></pre>
       <p><code>close</code> also forgets the last address, so the display does not reappear at the next login until the POS sends <code>open</code> again.</p>
+      <p>The word QRIS is pronounced like &quot;keris&quot; (the traditional dagger). The natural Supertonic 3 Indonesian voice is used when the <code>tts-model</code> folder exists in the app config folder; otherwise the OS TTS engine is used. See the project README for installing the model.</p>
     </div>
   </section>
 </main>

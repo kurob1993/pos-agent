@@ -1,11 +1,12 @@
 {
   "name": "layar-pelanggan",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
-    "build:linux": "tauri build --bundles deb,rpm,appimage"
+    "build:linux": "tauri build --bundles deb,rpm,appimage",
+  "test:voice": "cd src-tauri && cargo run --example voice-test"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"
