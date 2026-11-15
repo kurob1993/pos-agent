@@ -1,6 +1,6 @@
 // Layar Pelanggan: aplikasi tray di PC kasir. Halaman kasir (browser apa pun) mengirim alamat layar
 // pelanggan lewat WebSocket lokal, lalu aplikasi ini menampilkannya layar penuh di monitor kedua.
-// Alamat terakhir disimpan, jadi saat login layar langsung tampil tanpa menunggu kasir.
+// Alamat terakhir disimpan (last_url di config.json), jadi saat login layar bisa langsung tampil tanpa menunggu kasir.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{
@@ -40,6 +40,10 @@ const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 8183;
 const WINDOW: &str = "display";
 const SETTINGS: &str = "settings";
+const PICKER: &str = "picker";
+
+/// Halaman bawaan (ui/index.html) saat belum ada alamat POS atau alamatnya tidak bisa dijangkau.
+const DEFAULT_PAGE: &str = if cfg!(windows) { "http://tauri.localhost/index.html" } else { "tauri://localhost/index.html" };
 
 /// Efek suara denting koin yang diputar sebelum setiap pengumuman pembayaran.
 const COIN: &[u8] = include_bytes!("../assets/coin.wav");
@@ -76,6 +80,10 @@ struct Config {
     port: u16,
     /// Jalankan aplikasi otomatis saat login.
     autostart: bool,
+    /// Bahasa suara pengumuman ("id"/"en"); kosong = ikut bahasa tampilan.
+    voice_language: Option<String>,
+    /// Langkah sintesis suara natural: kecil = jeda lebih singkat, besar = suara lebih halus.
+    voice_steps: i32,
 }
 
 impl Default for Config {
@@ -88,6 +96,8 @@ impl Default for Config {
             host: DEFAULT_HOST.into(),
             port: DEFAULT_PORT,
             autostart: true,
+            voice_language: None,
+            voice_steps: 5,
         }
     }
 }
@@ -100,6 +110,8 @@ struct Settings {
     host: String,
     port: u16,
     autostart: bool,
+    voice_language: Option<String>,
+    voice_steps: i32,
 }
 
 /// Status listener WebSocket: nomor generasi untuk menghentikan listener lama, dan galat bind terakhir.
@@ -151,6 +163,16 @@ fn lang(app: &AppHandle) -> &'static str {
     }
 }
 
+/// Bahasa suara pengumuman: pilihan sendiri, atau ikut bahasa tampilan.
+fn voice_lang(app: &AppHandle) -> &'static str {
+    let language = app.state::<Mutex<Config>>().lock().unwrap().voice_language.clone();
+    match language.as_deref() {
+        Some("id") => "id",
+        Some("en") => "en",
+        _ => lang(app),
+    }
+}
+
 fn tr(app: &AppHandle, id: &str, en: &str) -> String {
     (if lang(app) == "id" { id } else { en }).to_string()
 }
@@ -178,12 +200,17 @@ fn second_monitor(app: &AppHandle) -> Option<tauri::Monitor> {
     monitors.into_iter().find(|m| m.position() != primary.position())
 }
 
+/// Monitor sesuai Pengaturan: monitor pilihan bila diisi (None bila tidak tersambung), selain itu monitor kedua.
+fn configured_monitor(app: &AppHandle, config: &DisplayConfig) -> Option<tauri::Monitor> {
+    match config.monitor.as_deref() {
+        Some(key) => app.available_monitors().ok()?.into_iter().find(|m| monitor_key(m) == key),
+        None => second_monitor(app),
+    }
+}
+
 /// Monitor pilihan pengguna; bila belum dipilih atau sedang tidak tersambung, pakai monitor kedua.
 fn target_monitor(app: &AppHandle, config: &DisplayConfig) -> Option<tauri::Monitor> {
-    let chosen = config.monitor.as_deref().and_then(|key| {
-        app.available_monitors().ok()?.into_iter().find(|m| monitor_key(m) == key)
-    });
-    chosen.or_else(|| second_monitor(app))
+    configured_monitor(app, config).or_else(|| second_monitor(app))
 }
 
 fn place(window: &WebviewWindow, monitor: &tauri::Monitor, config: &DisplayConfig) -> tauri::Result<()> {
@@ -238,6 +265,66 @@ fn show(app: &AppHandle, url: &str) -> Result<(), String> {
             .map_err(|e| e.to_string())?,
     };
     place(&window, &monitor, &config).map_err(|e| e.to_string())
+}
+
+/// Server POS dianggap terjangkau bila menjawab HTTP tanpa galat server (5xx dari proxy = aplikasinya mati).
+fn reachable(url: &str) -> bool {
+    match ureq::get(url).timeout(Duration::from_secs(5)).call() {
+        Ok(_) => true,
+        Err(ureq::Error::Status(code, _)) => code < 500,
+        Err(_) => false,
+    }
+}
+
+/// Tampilkan alamat terakhir; bila kosong atau tidak bisa dijangkau, tampilkan halaman bawaan.
+/// Memanggil jaringan, jadi jalankan di luar thread utama.
+fn show_last(app: &AppHandle) -> Result<(), String> {
+    let last_url = app.state::<Mutex<Config>>().lock().unwrap().last_url.clone();
+    match last_url.filter(|url| reachable(url)) {
+        Some(url) => show(app, &url),
+        None => show(app, DEFAULT_PAGE),
+    }
+}
+
+/// Saat aplikasi mulai: tunggu monitor sesuai Pengaturan (bisa terlambat siap saat login, maks. 30 detik).
+/// Bila tidak tersambung, layar pelanggan tidak ditampilkan; bila ada, tanya mau tampil di monitor mana.
+fn startup(app: AppHandle) {
+    thread::spawn(move || {
+        for _ in 0..15 {
+            if configured_monitor(&app, &display_config(&app)).is_some() {
+                open_picker(&app);
+                return;
+            }
+            thread::sleep(Duration::from_secs(2));
+        }
+    });
+}
+
+fn open_picker(app: &AppHandle) {
+    let _ = WebviewWindowBuilder::new(app, PICKER, WebviewUrl::App("picker.html".into()))
+        .title("Layar Pelanggan")
+        .inner_size(440.0, 420.0)
+        .resizable(false)
+        .always_on_top(true)
+        .center()
+        .build();
+}
+
+fn monitors_json(app: &AppHandle) -> Result<Vec<Value>, String> {
+    let primary = app.primary_monitor().ok().flatten();
+    Ok(app
+        .available_monitors()
+        .map_err(|e| e.to_string())?
+        .iter()
+        .map(|m| {
+            json!({
+                "key": monitor_key(m),
+                "width": m.size().width,
+                "height": m.size().height,
+                "primary": primary.as_ref().is_some_and(|p| p.position() == m.position()),
+            })
+        })
+        .collect())
 }
 
 fn open_settings(app: &AppHandle) {
@@ -329,20 +416,7 @@ fn only_settings(window: &WebviewWindow) -> Result<(), String> {
 #[tauri::command]
 fn get_settings(window: WebviewWindow, app: AppHandle) -> Result<Value, String> {
     only_settings(&window)?;
-    let primary = app.primary_monitor().ok().flatten();
-    let monitors: Vec<Value> = app
-        .available_monitors()
-        .map_err(|e| e.to_string())?
-        .iter()
-        .map(|m| {
-            json!({
-                "key": monitor_key(m),
-                "width": m.size().width,
-                "height": m.size().height,
-                "primary": primary.as_ref().is_some_and(|p| p.position() == m.position()),
-            })
-        })
-        .collect();
+    let monitors = monitors_json(&app)?;
     let settings = {
         let state = app.state::<Mutex<Config>>();
         let config = state.lock().unwrap();
@@ -352,6 +426,8 @@ fn get_settings(window: WebviewWindow, app: AppHandle) -> Result<Value, String> 
             host: config.host.clone(),
             port: config.port,
             autostart: config.autostart,
+            voice_language: config.voice_language.clone(),
+            voice_steps: config.voice_steps,
         }
     };
     let listener_error = app.state::<Server>().error.lock().unwrap().clone();
@@ -361,7 +437,40 @@ fn get_settings(window: WebviewWindow, app: AppHandle) -> Result<Value, String> 
         "system_lang": system_lang(),
         "listener_error": listener_error,
         "dev": cfg!(debug_assertions),
+        "version": env!("CARGO_PKG_VERSION"),
     }))
+}
+
+/// Data untuk dialog pilih monitor saat startup.
+#[tauri::command]
+fn picker_data(window: WebviewWindow, app: AppHandle) -> Result<Value, String> {
+    if window.label() != PICKER {
+        return Err("Forbidden".into());
+    }
+    let selected = configured_monitor(&app, &display_config(&app)).map(|m| monitor_key(&m));
+    Ok(json!({ "monitors": monitors_json(&app)?, "selected": selected, "lang": lang(&app) }))
+}
+
+/// Pilihan dari dialog startup: tampilkan di monitor `key`, atau tidak sama sekali bila None.
+/// Monitor yang berbeda dari Pengaturan disimpan agar perintah POS berikutnya ikut ke monitor itu.
+#[tauri::command]
+fn pick_monitor(window: WebviewWindow, app: AppHandle, key: Option<String>) -> Result<(), String> {
+    if window.label() != PICKER {
+        return Err("Forbidden".into());
+    }
+    let _ = window.close();
+    let Some(key) = key else { return Ok(()) };
+    let current = configured_monitor(&app, &display_config(&app)).map(|m| monitor_key(&m));
+    if current.as_deref() != Some(key.as_str()) {
+        let state = app.state::<Mutex<Config>>();
+        let mut config = state.lock().unwrap();
+        config.display.monitor = Some(key);
+        save_config(&app, &config);
+    }
+    thread::spawn(move || {
+        let _ = show_last(&app);
+    });
+    Ok(())
 }
 
 #[tauri::command]
@@ -413,6 +522,8 @@ fn save_settings(window: WebviewWindow, app: AppHandle, settings: Settings) -> R
         config.host = host;
         config.port = settings.port;
         config.autostart = autostart_on;
+        config.voice_steps = settings.voice_steps.clamp(2, 10);
+        config.voice_language = settings.voice_language.filter(|l| l == "id" || l == "en");
         save_config(&app, &config);
     }
     refresh_tray(&app);
@@ -450,14 +561,16 @@ fn cancel_voice_download(window: WebviewWindow, app: AppHandle) -> Result<(), St
     Ok(())
 }
 
-/// Putar contoh pengumuman pembayaran dari Pengaturan: koin + suara.
+/// Putar uji suara dari Pengaturan: koin + `text`, atau contoh pengumuman pembayaran bila kosong.
 #[tauri::command]
-fn test_voice(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+fn test_voice(window: WebviewWindow, app: AppHandle, text: Option<String>) -> Result<(), String> {
     only_settings(&window)?;
-    let text = voice::payment_text(lang(&app), "qris", 25000.0)
-        .ok_or_else(|| "kalimat uji tidak sah".to_string())?;
+    let text = match text.map(|t| t.trim().chars().take(500).collect::<String>()).filter(|t| !t.is_empty()) {
+        Some(text) => text,
+        None => voice::payment_text(voice_lang(&app), "qris", 25000.0).ok_or_else(|| "kalimat uji tidak sah".to_string())?,
+    };
     // thread terpisah agar UI tidak membeku selama sintesis
-    thread::spawn(move || speak_text(&app, &text));
+    thread::spawn(move || speak_text(&app, &text, true));
     Ok(())
 }
 
@@ -528,6 +641,7 @@ fn respond(app: &AppHandle, origin: &str, request: &Value) -> Value {
             json!({ "ok": true })
         }
         Some("speak") => speak_payment(app, origin, request),
+        Some("say") => say(app, origin, request),
         _ => json!({ "ok": false, "error": tr(app, "Perintah tidak dikenal", "Unknown command") }),
     }
 }
@@ -541,29 +655,46 @@ fn speak_payment(app: &AppHandle, origin: &str, request: &Value) -> Value {
         return json!({ "ok": false, "error": tr(app, "Amount harus berupa angka", "Amount must be a number") });
     };
     let method = request["method"].as_str().unwrap_or_default();
-    let language = lang(app);
+    let language = voice_lang(app);
     let Some(text) = voice::payment_text(language, method, amount) else {
         return json!({ "ok": false, "error": tr(app, "Method harus cash, edc, atau qris, dan amount harus angka positif", "Method must be cash, edc, or qris, and amount must be a positive number") });
     };
     let app = app.clone();
-    thread::spawn(move || speak_text(&app, &text));
+    thread::spawn(move || speak_text(&app, &text, true));
+    json!({ "ok": true })
+}
+
+/// Ucapkan teks bebas dari POS; `coin: true` menambahkan denting koin di depan.
+fn say(app: &AppHandle, origin: &str, request: &Value) -> Value {
+    if !is_allowed(app, origin) {
+        return json!({ "ok": false, "error": tr(app, "Situs ini belum diizinkan di aplikasi Layar Pelanggan", "This site is not yet allowed in the Customer Display app") });
+    }
+    let text = request["text"].as_str().unwrap_or_default().trim().to_string();
+    if text.is_empty() || text.chars().count() > 500 {
+        return json!({ "ok": false, "error": tr(app, "Text wajib diisi, maksimal 500 karakter", "Text is required, at most 500 characters") });
+    }
+    let coin = request["coin"].as_bool().unwrap_or(false);
+    let app = app.clone();
+    thread::spawn(move || speak_text(&app, &text, coin));
     json!({ "ok": true })
 }
 
 /// Ucapkan pengumuman: denting koin + suara natural Supertonic bila model tersedia,
 /// selain itu jatuh ke mesin TTS OS.
-fn speak_text(app: &AppHandle, text: &str) {
+fn speak_text(app: &AppHandle, text: &str, coin: bool) {
     // Antrekan bila ada pengumuman lain sedang berbicara
     let server = app.state::<Server>();
     let _guard = server.speaking.lock().unwrap();
-    let language = lang(app);
+    let language = voice_lang(app);
+    let text = &voice::normalize_text(language, text);
+    let steps = app.state::<Mutex<Config>>().lock().unwrap().voice_steps.clamp(2, 10);
     if let Some(model) = audio::find_model_dir(&model_dir_candidates(app)) {
-        if audio::speak_supertonic(&model, COIN, text) {
+        if audio::speak_supertonic(&model, coin.then_some(COIN), text, steps, language) {
             return;
         }
         eprintln!("Layar Pelanggan: gagal memuat model Supertonic, pakai TTS OS");
     }
-    if audio::play_coin(COIN).is_ok() && audio::speak_os(language, text) {
+    if (!coin || audio::play_coin(COIN).is_ok()) && audio::speak_os(language, text) {
         return;
     }
     eprintln!("Layar Pelanggan: tidak ada mesin suara yang bisa dipakai");
@@ -612,7 +743,9 @@ fn main() {
             download_voice_model,
             voice_download_progress,
             cancel_voice_download,
-            test_voice
+            test_voice,
+            picker_data,
+            pick_monitor
         ])
         .plugin(tauri_plugin_single_instance::init(|_, _, _| {}))
         .plugin(tauri_plugin_dialog::init())
@@ -623,7 +756,6 @@ fn main() {
                 .and_then(|path| fs::read(path).ok())
                 .and_then(|bytes| serde_json::from_slice(&bytes).ok())
                 .unwrap_or_default();
-            let last_url = config.last_url.clone();
             let (host, port, autostart) = (config.host.clone(), config.port, config.autostart);
             app.manage(Mutex::new(config));
             app.manage(Server::default());
@@ -644,10 +776,10 @@ fn main() {
                     "quit" => app.exit(0),
                     "settings" => open_settings(app),
                     "show" => {
-                        let url = app.state::<Mutex<Config>>().lock().unwrap().last_url.clone();
-                        if let Some(url) = url {
-                            let _ = show(app, &url);
-                        }
+                        let app = app.clone();
+                        thread::spawn(move || {
+                            let _ = show_last(&app);
+                        });
                     }
                     _ => {}
                 });
@@ -665,27 +797,25 @@ fn main() {
                 }
             }
 
-            // Saat login monitor kedua bisa terlambat siap: coba sampai 30 detik
-            if let Some(url) = last_url {
-                thread::spawn(move || {
-                    for _ in 0..15 {
-                        if show(&handle, &url).is_ok() {
-                            break;
-                        }
-                        thread::sleep(Duration::from_secs(2));
-                    }
-                });
+            // Muat model suara di latar agar pengumuman pertama tidak menunggu
+            if let Some(model) = audio::find_model_dir(&model_dir_candidates(&handle)) {
+                thread::spawn(move || audio::preload(&model));
             }
+            startup(handle);
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("gagal menjalankan Layar Pelanggan")
-        .run(|_, event| {
+        .run(|app, event| match event {
             // Tetap hidup di tray walau jendela layar pelanggan ditutup; keluar hanya lewat menu tray
-            if let RunEvent::ExitRequested { api, code, .. } = event {
-                if code.is_none() {
-                    api.prevent_exit();
-                }
+            RunEvent::ExitRequested { api, code: None, .. } => api.prevent_exit(),
+            // Aplikasi ditutup: lupakan alamat terakhir, jadi start berikutnya menampilkan halaman bawaan
+            RunEvent::Exit => {
+                let state = app.state::<Mutex<Config>>();
+                let mut config = state.lock().unwrap();
+                config.last_url = None;
+                save_config(app, &config);
             }
+            _ => {}
         });
 }

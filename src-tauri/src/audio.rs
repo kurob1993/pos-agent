@@ -68,12 +68,14 @@ fn with_engine<T>(model_dir: &Path, f: impl FnOnce(&sherpa_onnx::OfflineTts) -> 
 }
 
 /// Sintesis kalimat jadi sampel mono + sample rate.
-fn synthesize(tts: &sherpa_onnx::OfflineTts, text: &str) -> (Vec<f32>, i32) {
+/// `steps` = langkah denoising: kecil lebih cepat, besar lebih halus (bawaan Supertonic 5).
+/// `lang` = kode bahasa Supertonic ("id"/"en") yang menentukan pelafalan.
+fn synthesize(tts: &sherpa_onnx::OfflineTts, text: &str, steps: i32, lang: &str) -> (Vec<f32>, i32) {
     let mut extra = HashMap::new();
-    extra.insert("lang".to_string(), json!("id"));
+    extra.insert("lang".to_string(), json!(lang));
     let gen = sherpa_onnx::GenerationConfig {
         sid: 0,
-        num_steps: 8,
+        num_steps: steps,
         speed: 1.0,
         extra: Some(extra),
         ..Default::default()
@@ -84,18 +86,46 @@ fn synthesize(tts: &sherpa_onnx::OfflineTts, text: &str) -> (Vec<f32>, i32) {
     (audio.samples().to_vec(), audio.sample_rate())
 }
 
-/// Ucapkan `text` dengan denting koin di depan memakai Supertonic.
-/// Kembalikan false bila model atau engine tidak tersedia (penelepon boleh fallback).
-pub fn speak_supertonic(model_dir: &Path, coin: &[u8], text: &str) -> bool {
-    let Some((speech, rate)) = with_engine(model_dir, |tts| synthesize(tts, text)) else {
-        return false;
-    };
-    let mut sources = Vec::new();
-    if let Ok(coin) = read_wav(coin) {
-        sources.push(coin);
+/// Muat model lebih awal (±3 detik) agar pengumuman pertama tidak menunggu.
+pub fn preload(model_dir: &Path) {
+    with_engine(model_dir, |_| ());
+}
+
+/// Potong kalimat per frasa (setelah , . ! ? ; yang diikuti spasi) supaya frasa pertama
+/// bisa diputar selagi frasa berikutnya disintesis. "Rp 25.000" tidak ikut terpotong.
+fn phrases(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    let mut chars = text.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        let end_of_phrase = matches!(c, ',' | '.' | '!' | '?' | ';')
+            && chars.peek().map_or(true, |(_, next)| next.is_whitespace());
+        if end_of_phrase {
+            out.push(text[start..i + c.len_utf8()].trim().to_string());
+            start = i + c.len_utf8();
+        }
     }
-    sources.push((speech, rate as u32));
-    play_sources(sources).is_ok()
+    out.push(text[start..].trim().to_string());
+    out.retain(|p| !p.is_empty());
+    out
+}
+
+/// Ucapkan `text` memakai Supertonic, dengan denting koin di depan bila diberikan.
+/// Koin langsung berbunyi sementara frasa pertama disintesis.
+/// Kembalikan false bila model atau engine tidak tersedia (penelepon boleh fallback).
+pub fn speak_supertonic(model_dir: &Path, coin: Option<&[u8]>, text: &str, steps: i32, lang: &str) -> bool {
+    if with_engine(model_dir, |_| ()).is_none() {
+        return false;
+    }
+    let coin = coin.and_then(|bytes| read_wav(bytes).ok());
+    let speech = phrases(text).into_iter().filter_map(|phrase| {
+        with_engine(model_dir, |tts| synthesize(tts, &phrase, steps, lang)).map(|(samples, rate)| (samples, rate as u32))
+    });
+    // Galat pemutaran hanya dicatat: fallback ke TTS OS di sini membuat kalimat terucap dua kali
+    if let Err(error) = play_sources(coin.into_iter().chain(speech)) {
+        eprintln!("Layar Pelanggan: gagal memutar suara ({error})");
+    }
+    true
 }
 
 /// Ucapkan `text` dengan mesin TTS OS (crate `tts`); voice dipilih mengikuti `language`.
@@ -122,23 +152,27 @@ fn pick_voice<'a>(voices: &'a [tts::Voice], language: &str) -> Option<&'a tts::V
 
 /// Putar denting koin saja (tanpa ucapan); untuk jalur fallback TTS OS.
 pub fn play_coin(coin: &[u8]) -> Result<(), String> {
-    let (samples, rate) = read_wav(coin)?;
-    play_sources(vec![(samples, rate)])
+    play_sources(std::iter::once(read_wav(coin)?))
 }
 
-/// Putar daftar (sampel, sample rate) secara berurutan sampai selesai.
+/// Putar (sampel, sample rate) berurutan sampai selesai; sumber diambil dari iterator
+/// sambil memutar, jadi sumber berikutnya boleh disiapkan selagi yang sebelumnya berbunyi.
 /// Mixer rodio otomatis menyeragamkan kanal dan sample rate ke perangkat keluaran.
 /// Aliran yang rusak (mis. ALSA EIO saat perangkat baru saja sibuk) dicoba ulang sekali.
-fn play_sources(sources: Vec<(Vec<f32>, u32)>) -> Result<(), String> {
-    let mut error = play_once(&sources);
-    if error.is_err() {
-        eprintln!("Layar Pelanggan: aliran audio bermasalah, mencoba ulang");
-        error = play_once(&sources);
+fn play_sources(mut sources: impl Iterator<Item = (Vec<f32>, u32)>) -> Result<(), String> {
+    let mut played = Vec::new();
+    let result = play_once(sources.by_ref().map(|source| {
+        played.push(source.clone());
+        source
+    }));
+    if result.is_ok() {
+        return result;
     }
-    error
+    eprintln!("Layar Pelanggan: aliran audio bermasalah, mencoba ulang");
+    play_once(played.into_iter().chain(sources))
 }
 
-fn play_once(sources: &[(Vec<f32>, u32)]) -> Result<(), String> {
+fn play_once(sources: impl Iterator<Item = (Vec<f32>, u32)>) -> Result<(), String> {
     let failed = Arc::new(AtomicBool::new(false));
     let flag = failed.clone();
     let mut device = rodio::DeviceSinkBuilder::from_default_device()
@@ -152,8 +186,8 @@ fn play_once(sources: &[(Vec<f32>, u32)]) -> Result<(), String> {
     device.log_on_drop(false);
     let player = rodio::Player::connect_new(device.mixer());
     for (samples, rate) in sources {
-        let rate = NonZeroU32::new(*rate).expect("sample rate tidak boleh nol");
-        player.append(rodio::buffer::SamplesBuffer::new(NonZeroU16::new(1).unwrap(), rate, samples.clone()));
+        let rate = NonZeroU32::new(rate).expect("sample rate tidak boleh nol");
+        player.append(rodio::buffer::SamplesBuffer::new(NonZeroU16::new(1).unwrap(), rate, samples));
     }
     player.sleep_until_end();
     if failed.load(Ordering::SeqCst) {
@@ -183,6 +217,15 @@ fn read_wav(bytes: &[u8]) -> Result<(Vec<f32>, u32), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn frasa_dipotong_di_tanda_baca() {
+        assert_eq!(
+            phrases("Pembayaran berhasil, keris Rp 25.000, terima kasih."),
+            ["Pembayaran berhasil,", "keris Rp 25.000,", "terima kasih."]
+        );
+        assert_eq!(phrases("  halo  "), ["halo"]);
+    }
 
     #[test]
     fn coin_wav_terbaca() {

@@ -1,0 +1,65 @@
+/* Token dan komponen bergaya shadcn/ui (palet zinc), tanpa build step. */
+:root {
+  --background: #ffffff; --foreground: #09090b;
+  --card: #ffffff; --muted: #f4f4f5; --muted-foreground: #71717a;
+  --border: #e4e4e7; --input: #e4e4e7; --ring: #a1a1aa;
+  --primary: #18181b; --primary-foreground: #fafafa;
+  --destructive: #dc2626; --destructive-bg: #fef2f2;
+  --warning: #92400e; --warning-bg: #fffbeb; --warning-border: #fde68a;
+  --radius: 0.5rem;
+  --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fafafa' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5'/%3E%3Cpath d='m7 9 5-5 5 5'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #09090b; --foreground: #fafafa;
+    --card: #09090b; --muted: #27272a; --muted-foreground: #a1a1aa;
+    --border: #27272a; --input: #27272a; --ring: #52525b;
+    --primary: #fafafa; --primary-foreground: #18181b;
+    --destructive: #f87171; --destructive-bg: #450a0a;
+    --warning: #fcd34d; --warning-bg: #422006; --warning-border: #713f12;
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5'/%3E%3Cpath d='m7 9 5-5 5 5'/%3E%3C/svg%3E");
+    --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2318181b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--background); color: var(--foreground); font: 14px/1.5 Inter, ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+[hidden] { display: none !important; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 16px; border: 1px solid transparent; border-radius: calc(var(--radius) - 2px); background: var(--primary); color: var(--primary-foreground); font: 500 14px/1 inherit; font-family: inherit; cursor: pointer; transition: opacity .15s, background .15s; }
+.btn:hover { opacity: .9; }
+.btn:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.btn:disabled { opacity: .5; pointer-events: none; }
+.btn-outline { background: var(--background); color: var(--foreground); border-color: var(--input); box-shadow: 0 1px 2px #0000000d; }
+.btn-outline:hover { background: var(--muted); opacity: 1; }
+.btn-ghost { background: transparent; color: var(--foreground); }
+.btn-ghost:hover { background: var(--muted); opacity: 1; }
+
+input[type=text], input[type=number], select { width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); background: transparent; color: var(--foreground); font: inherit; box-shadow: 0 1px 2px #0000000d; }
+select { appearance: none; -webkit-appearance: none; padding-right: 36px; background: var(--chevron) no-repeat right 10px center / 16px; cursor: pointer; text-overflow: ellipsis; }
+select:hover { background-color: var(--muted); }
+select option { background: var(--background); color: var(--foreground); }
+input:disabled { opacity: .5; cursor: not-allowed; }
+input[type=radio], input[type=checkbox] { appearance: none; -webkit-appearance: none; flex: none; width: 16px; height: 16px; margin: 0; border: 1px solid var(--primary); background: transparent; box-shadow: 0 1px 2px #0000000d; cursor: pointer; }
+input[type=checkbox] { border-radius: 4px; }
+input[type=checkbox]:checked { background: var(--primary) var(--check) no-repeat center / 12px; }
+input[type=radio] { border-radius: 50%; }
+input[type=radio]:checked { background: radial-gradient(circle, var(--primary) 0 3.5px, transparent 4px); }
+input[type=radio]:focus-visible, input[type=checkbox]:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
+input::placeholder { color: var(--muted-foreground); }
+progress { appearance: none; -webkit-appearance: none; width: 100%; height: 8px; border: 0; border-radius: 999px; background: var(--muted); overflow: hidden; }
+progress::-webkit-progress-bar { background: var(--muted); border-radius: 999px; }
+progress::-webkit-progress-value { background: var(--primary); border-radius: 999px; transition: width .2s; }
+progress::-moz-progress-bar { background: var(--primary); border-radius: 999px; }
+
+.card { border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); background: var(--card); box-shadow: 0 1px 3px #0000000f; }
+.muted { color: var(--muted-foreground); }
+.badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+code { padding: 2px 5px; border-radius: 4px; background: var(--muted); }
+pre { margin: 8px 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted); overflow-x: auto; }
+pre code { padding: 0; background: none; }

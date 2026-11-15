@@ -9,9 +9,9 @@ A tray app for the cashier PC that shows the POS customer display fullscreen on 
 2. Jalankan aplikasi. Ikonnya ada di system tray (klik kanan: Pengaturan, Tampilkan ulang, Keluar).
 3. Halaman kasir (POS) terhubung ke `ws://127.0.0.1:8183` dan mengirim alamat layar pelanggan.
 4. Pertama kali, izinkan situs POS pada dialog yang muncul. Izin tersimpan.
-5. Alamat terakhir diingat, jadi layar langsung tampil saat PC menyala.
+5. Saat PC menyala, bila monitor sesuai Pengaturan tersambung, muncul dialog pilih monitor lalu layar menampilkan alamat terakhir (atau halaman bawaan bila belum ada/tidak bisa dijangkau). Alamat terakhir dihapus saat aplikasi ditutup lewat Keluar.
 
-Menu **Pengaturan** (tray): pilihan monitor, layar penuh/jendela beserta ukurannya, host dan port WebSocket, bahasa (Indonesia/English), dan mulai otomatis saat login.
+Menu **Pengaturan** (tray): pilihan monitor, layar penuh/jendela beserta ukurannya, host dan port WebSocket, bahasa (Indonesia/English), mulai otomatis saat login, serta suara natural (unduh model, kecepatan, dan test suara).
 
 ## How to use (EN)
 
@@ -19,9 +19,9 @@ Menu **Pengaturan** (tray): pilihan monitor, layar penuh/jendela beserta ukurann
 2. Start the app. Its icon is in the system tray (right-click: Settings, Show again, Quit).
 3. The cashier (POS) page connects to `ws://127.0.0.1:8183` and sends the customer display address.
 4. The first time, allow the POS site in the dialog. The choice is saved.
-5. The last address is remembered, so the display shows right after the PC starts.
+5. When the PC starts and the monitor set in Settings is connected, a monitor picker appears, then the display shows the last address (or the default page if there is none or it cannot be reached). The last address is cleared when the app is closed via Quit.
 
-**Settings** (tray menu): monitor choice, fullscreen/window mode and size, WebSocket host and port, language (Indonesian/English), and start-on-login.
+**Settings** (tray menu): monitor choice, fullscreen/window mode and size, WebSocket host and port, language (Indonesian/English), start-on-login, and the natural voice (model download, speed, and voice test).
 
 ## Protokol / Protocol
 
@@ -29,7 +29,7 @@ Pesan JSON lewat WebSocket / JSON messages over the WebSocket:
 
 ```json
 {"type":"ping"}
-{"ok":true,"version":"0.4.1","monitor":true}
+{"ok":true,"version":"0.5.0","monitor":true}
 
 {"type":"open","url":"https://pos.example.com/customer-display"}
 {"ok":true}
@@ -38,6 +38,9 @@ Pesan JSON lewat WebSocket / JSON messages over the WebSocket:
 {"ok":true}
 
 {"type":"speak","method":"cash","amount":50000}
+{"ok":true}
+
+{"type":"say","text":"Silakan ambil struk Anda.","coin":false}
 {"ok":true}
 ```
 
@@ -51,6 +54,8 @@ Perintah `speak` memutar denting koin lalu mengucapkan "Pembayaran berhasil …"
 - `amount`: angka positif / a positive number, maks. / max. 10¹⁵
 - Suara hanya keluar dari situs yang sudah diizinkan (sama seperti `open`/`close`). / Speech only plays from allowed sites (same as `open`/`close`).
 - Suara diputar thread terpisah; jawaban `ok` dikirim sebelum ucapan selesai. / Speech plays on a separate thread; the `ok` reply is sent before speaking finishes.
+- Perintah `say` mengucapkan teks bebas: `text` wajib (maks. 500 karakter), `coin` opsional (`true` = denting koin di depan, bawaan `false`). / The `say` command speaks any text: `text` required (max. 500 characters), `coin` optional (`true` = leading coin chime, default `false`).
+- Jeda sebelum suara terdengar diatur di Pengaturan → Suara → Kecepatan suara natural (Cepat/Seimbang/Kualitas tinggi). / The delay before speech is set in Settings → Voice → Natural voice speed (Fast/Balanced/High quality).
 
 #### Cara integrasi di halaman kasir / How to integrate in the cashier page
 
@@ -89,8 +94,8 @@ Windows: ekstrak isi arsip ke `%APPDATA%\id.co.krakatau-it.pos.layar-pelanggan\t
 - Tanpa model: Windows perlu voice Bahasa Indonesia dipasang sekali (Settings → Time & Language → Speech, mis. "Microsoft Gadis"); Linux memakai speech-dispatcher/espeak yang terdengar robotik. / Without the model: Windows needs an Indonesian voice installed once (Settings → Time & Language → Speech, e.g. "Microsoft Gadis"); Linux uses speech-dispatcher/espeak which sounds robotic.
 - Uji tanpa membuka POS: `npm run test:voice` (dari folder proyek, untuk pengembang). / Test without the POS: `npm run test:voice` (from the project folder, for developers).
 
-`close` menutup layar pelanggan dan melupakan alamat terakhir (tidak tampil lagi saat login berikutnya). Hanya situs yang sudah diizinkan yang boleh memakainya.
-`close` closes the customer display and forgets the last address (it won't reappear at next login). Only already-allowed sites may use it.
+`close` menutup layar pelanggan dan melupakan alamat terakhir (saat login berikutnya yang tampil halaman bawaan). Hanya situs yang sudah diizinkan yang boleh memakainya.
+`close` closes the customer display and forgets the last address (the next login shows the default page). Only already-allowed sites may use it.
 
 Konfigurasi disimpan di `config.json` pada direktori konfigurasi aplikasi. / Settings are stored in `config.json` in the app config directory.
 

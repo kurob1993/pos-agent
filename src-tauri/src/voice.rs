@@ -181,9 +181,92 @@ pub fn payment_text(language: &str, method: &str, amount: f64) -> Option<String>
     }
 }
 
+/// Satu angka tertulis ("20,400.0", "25.000", "3,5") jadi kata. Pemisah ribuan/desimal ditebak:
+/// bila ada dua jenis, yang terakhir desimal; bila satu jenis dan muncul sekali diikuti tepat
+/// 3 digit, itu pemisah ribuan; selain itu desimal. `None` bila terlalu besar.
+fn number_words(language: &str, raw: &str) -> Option<String> {
+    let last_sep = raw.rfind([',', '.']);
+    let decimal = match last_sep {
+        Some(i) => {
+            let sep = raw.as_bytes()[i] as char;
+            let other = if sep == ',' { '.' } else { ',' };
+            let once = raw.matches(sep).count() == 1;
+            (raw.contains(other) || (once && raw.len() - i - 1 != 3)).then_some(i)
+        }
+        None => None,
+    };
+    let (whole, frac) = match decimal {
+        Some(i) => (&raw[..i], raw[i + 1..].trim_end_matches('0')),
+        None => (raw, ""),
+    };
+    let whole: String = whole.chars().filter(char::is_ascii_digit).collect();
+    if whole.len() > 15 {
+        return None;
+    }
+    let n: u64 = whole.parse().unwrap_or(0);
+    let en = language == "en";
+    let mut words = if en { number_to_words_en(n) } else { number_to_words_id(n) };
+    if !frac.is_empty() {
+        let (point, digits) = if en { ("point", &EN_DIGITS) } else { ("koma", &ID_DIGITS) };
+        words = format!("{words} {point} {}", digit_words(frac, digits));
+    }
+    Some(words)
+}
+
+/// Ubah angka di teks bebas jadi kata agar mesin suara tidak membacanya aneh.
+/// "Rp" di depan angka dipindah jadi "rupiah" di belakangnya: "Rp 25.000" → "dua puluh lima ribu rupiah".
+pub fn normalize_text(language: &str, text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if !chars[i].is_ascii_digit() {
+            out.push(chars[i]);
+            i += 1;
+            continue;
+        }
+        // Ambil digit beserta , . yang diapit digit
+        let start = i;
+        while i < chars.len()
+            && (chars[i].is_ascii_digit()
+                || (matches!(chars[i], ',' | '.') && chars.get(i + 1).is_some_and(char::is_ascii_digit)))
+        {
+            i += 1;
+        }
+        let raw: String = chars[start..i].iter().collect();
+        let Some(words) = number_words(language, &raw) else {
+            out.push_str(&raw);
+            continue;
+        };
+        let trimmed = out.trim_end().trim_end_matches('.');
+        let rupiah = trimmed.to_lowercase().ends_with("rp")
+            && !trimmed[..trimmed.len() - 2].ends_with(|c: char| c.is_alphanumeric());
+        if rupiah {
+            out.truncate(trimmed.len() - 2);
+            out.push_str(&words);
+            out.push_str(" rupiah");
+        } else {
+            out.push_str(&words);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn angka_di_teks_jadi_kata() {
+        assert_eq!(normalize_text("id", "20,400.0"), "dua puluh ribu empat ratus");
+        assert_eq!(normalize_text("id", "20.400,50"), "dua puluh ribu empat ratus koma lima");
+        assert_eq!(normalize_text("id", "Total Rp 25.000, terima kasih."), "Total dua puluh lima ribu rupiah, terima kasih.");
+        assert_eq!(normalize_text("id", "Rp.1.500.000"), "satu juta lima ratus ribu rupiah");
+        assert_eq!(normalize_text("id", "antrean 3,5 menit"), "antrean tiga koma lima menit");
+        assert_eq!(normalize_text("id", "nomor 12."), "nomor dua belas.");
+        assert_eq!(normalize_text("en", "Total 1,250"), "Total one thousand two hundred fifty");
+        assert_eq!(normalize_text("id", "Grp 5"), "Grp lima");
+    }
 
     #[test]
     fn terbilang_indonesia() {

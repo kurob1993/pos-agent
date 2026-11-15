@@ -1,6 +1,6 @@
 [package]
 name = "layar-pelanggan"
-version = "0.4.1"
+version = "0.5.0"
 description = "Layar pelanggan POS di monitor kedua"
 edition = "2021"
 
@@ -27,3 +27,9 @@ bzip2 = { version = "0.5", default-features = false, features = ["libbz2-rs-sys"
 [profile.release]
 strip = true
 opt-level = "s"
+
+
+# Linux: putar lewat PulseAudio/PipeWire langsung (pure Rust). Plugin ALSA "default" ke PipeWire
+# sering melempar EIO di snd_pcm_avail_delay; bila server Pulse tidak ada cpal kembali ke ALSA.
+[target.'cfg(target_os = "linux")'.dependencies]
+cpal = { version = "0.18", features = ["pulseaudio"] }
