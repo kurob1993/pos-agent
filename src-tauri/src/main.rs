@@ -276,13 +276,25 @@ fn reachable(url: &str) -> bool {
     }
 }
 
-/// Tampilkan alamat terakhir; bila kosong atau tidak bisa dijangkau, tampilkan halaman bawaan.
-/// Memanggil jaringan, jadi jalankan di luar thread utama.
+/// Tampilkan halaman bawaan dulu, lalu pindah ke alamat terakhir begitu situs POS bisa dijangkau
+/// (mis. server POS baru siap beberapa saat setelah login). Pengecekan berhenti bila layar sudah
+/// tidak menampilkan halaman bawaan: POS mengirim alamat sendiri, atau jendela ditutup.
+/// Memanggil jaringan dan menunggu, jadi jalankan di luar thread utama.
 fn show_last(app: &AppHandle) -> Result<(), String> {
-    let last_url = app.state::<Mutex<Config>>().lock().unwrap().last_url.clone();
-    match last_url.filter(|url| reachable(url)) {
-        Some(url) => show(app, &url),
-        None => show(app, DEFAULT_PAGE),
+    show(app, DEFAULT_PAGE)?;
+    let Some(url) = app.state::<Mutex<Config>>().lock().unwrap().last_url.clone() else { return Ok(()) };
+    loop {
+        let on_default = app
+            .get_webview_window(WINDOW)
+            .and_then(|w| w.url().ok())
+            .is_some_and(|u| u.as_str() == DEFAULT_PAGE);
+        if !on_default {
+            return Ok(());
+        }
+        if reachable(&url) {
+            return show(app, &url);
+        }
+        thread::sleep(Duration::from_secs(3));
     }
 }
 
