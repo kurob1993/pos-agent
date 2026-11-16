@@ -31,7 +31,7 @@ Pesan JSON lewat WebSocket / JSON messages over the WebSocket:
 
 ```json
 {"type":"ping"}
-{"ok":true,"version":"0.6.0","monitor":true}
+{"ok":true,"version":"0.7.0","monitor":true}
 
 {"type":"open","url":"https://pos.example.com/customer-display"}
 {"ok":true}
@@ -103,6 +103,24 @@ Konfigurasi disimpan di `config.json` pada direktori konfigurasi aplikasi. / Set
 
 > Host selain `127.0.0.1`/`localhost` membuat WebSocket bisa dijangkau dari jaringan; gunakan hanya bila perlu.
 > A host other than `127.0.0.1`/`localhost` exposes the WebSocket to the network; use it only if needed.
+
+## Mode tanpa UI / Headless mode
+
+Untuk menjalankan dari terminal Linux atau cmd/PowerShell Windows tanpa jendela, tray, maupun layar (mis. di mini PC tanpa monitor atau sebagai service). / To run from a Linux terminal or Windows cmd/PowerShell without windows, tray, or a display (e.g. on a headless mini PC or as a service).
+
+```bash
+pos-agent --headless
+```
+
+```bat
+REM dari folder instalasi POS Agent / from the POS Agent install folder
+pos-agent.exe --headless
+```
+
+- Yang berjalan: WebSocket (`ping`, `speak`, `say`) dan suara, memakai `config.json` yang sama. / Runs: the WebSocket (`ping`, `speak`, `say`) and voice, using the same `config.json`.
+- `open`/`close` dijawab galat karena tidak ada layar; `ping` membalas `"headless": true`. / `open`/`close` return an error since there is no display; `ping` replies with `"headless": true`.
+- Tidak ada dialog izin: hanya situs yang sudah ada di `origins` (diizinkan lewat mode biasa atau ditulis di `config.json`) yang dilayani. / No permission dialog: only sites already in `origins` (allowed in normal mode or written in `config.json`) are served.
+- Jangan jalankan bersamaan dengan mode biasa; keduanya memakai port yang sama. Berhenti dengan Ctrl+C. / Do not run alongside normal mode; both use the same port. Stop with Ctrl+C.
 
 ## Pengembangan / Development
 

@@ -32,6 +32,7 @@ use tungstenite::{
 };
 
 mod audio;
+mod headless;
 mod model;
 mod voice;
 
@@ -66,7 +67,7 @@ impl Default for DisplayConfig {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 struct Config {
     /// Situs POS yang sudah diizinkan pengguna menampilkan layar pelanggan.
@@ -119,9 +120,10 @@ struct Settings {
 struct Server {
     generation: AtomicU64,
     error: Mutex<Option<String>>,
-    /// Kunci agar pengumuman suara tidak saling tumpang tindih; diambil saat sedang berbicara.
-    speaking: Mutex<()>,
 }
+
+/// Kunci agar pengumuman suara tidak saling tumpang tindih; diambil saat sedang berbicara.
+static SPEAKING: Mutex<()> = Mutex::new(());
 
 /// Item menu tray, disimpan agar teksnya bisa diganti saat bahasa berubah.
 struct TrayItems {
@@ -133,10 +135,15 @@ struct TrayItems {
 /// Aplikasi dulu bernama "Layar Pelanggan": pindahkan folder konfigurasinya (izin situs, pengaturan,
 /// model suara ±139 MB) ke folder baru sekali saja, bila folder baru belum ada.
 fn migrate_old_config(app: &AppHandle) {
-    let Ok(new) = app.path().app_config_dir() else { return };
+    if let Ok(new) = app.path().app_config_dir() {
+        migrate_config_dir(&new);
+    }
+}
+
+fn migrate_config_dir(new: &std::path::Path) {
     let Some(old) = new.parent().map(|dir| dir.join("id.co.krakatau-it.pos.layar-pelanggan")) else { return };
     if old.is_dir() && !new.exists() {
-        let _ = fs::rename(&old, &new);
+        let _ = fs::rename(&old, new);
     }
 }
 
@@ -165,8 +172,11 @@ fn system_lang() -> &'static str {
 
 /// Bahasa yang dipakai: pilihan pengguna, atau bahasa sistem.
 fn lang(app: &AppHandle) -> &'static str {
-    let language = app.state::<Mutex<Config>>().lock().unwrap().language.clone();
-    match language.as_deref() {
+    ui_lang(&app.state::<Mutex<Config>>().lock().unwrap())
+}
+
+fn ui_lang(config: &Config) -> &'static str {
+    match config.language.as_deref() {
         Some("id") => "id",
         Some("en") => "en",
         _ => system_lang(),
@@ -174,17 +184,24 @@ fn lang(app: &AppHandle) -> &'static str {
 }
 
 /// Bahasa suara pengumuman: pilihan sendiri, atau ikut bahasa tampilan.
-fn voice_lang(app: &AppHandle) -> &'static str {
-    let language = app.state::<Mutex<Config>>().lock().unwrap().voice_language.clone();
-    match language.as_deref() {
+fn voice_lang_of(config: &Config) -> &'static str {
+    match config.voice_language.as_deref() {
         Some("id") => "id",
         Some("en") => "en",
-        _ => lang(app),
+        _ => ui_lang(config),
     }
 }
 
+fn pick(lang: &str, id: &str, en: &str) -> String {
+    (if lang == "id" { id } else { en }).to_string()
+}
+
+fn voice_lang(app: &AppHandle) -> &'static str {
+    voice_lang_of(&app.state::<Mutex<Config>>().lock().unwrap())
+}
+
 fn tr(app: &AppHandle, id: &str, en: &str) -> String {
-    (if lang(app) == "id" { id } else { en }).to_string()
+    pick(lang(app), id, en)
 }
 
 fn no_monitor(app: &AppHandle) -> String {
@@ -412,7 +429,7 @@ fn spawn_listener(app: &AppHandle, listener: TcpListener) {
             Ok((stream, _)) => {
                 let _ = stream.set_nonblocking(false);
                 let app = app.clone();
-                thread::spawn(move || serve(app, stream));
+                thread::spawn(move || serve(stream, |origin, request| respond(&app, origin, request)));
             }
             Err(_) => thread::sleep(Duration::from_millis(100)),
         }
@@ -650,7 +667,7 @@ fn respond(app: &AppHandle, origin: &str, request: &Value) -> Value {
         Some("close") => {
             // Menutup tidak boleh memicu dialog izin: hanya situs yang sudah diizinkan
             if !is_allowed(app, origin) {
-                return json!({ "ok": false, "error": tr(app, "Situs ini belum diizinkan di aplikasi POS Agent", "This site is not yet allowed in the POS Agent app") });
+                return not_allowed(lang(app));
             }
             if let Some(window) = app.get_webview_window(WINDOW) {
                 let _ = window.close();
@@ -662,56 +679,69 @@ fn respond(app: &AppHandle, origin: &str, request: &Value) -> Value {
             save_config(app, &config);
             json!({ "ok": true })
         }
-        Some("speak") => speak_payment(app, origin, request),
-        Some("say") => say(app, origin, request),
+        Some("speak" | "say") => {
+            let config = app.state::<Mutex<Config>>().lock().unwrap().clone();
+            handle_speech(&config, model_dir_candidates(app), origin, request)
+        }
         _ => json!({ "ok": false, "error": tr(app, "Perintah tidak dikenal", "Unknown command") }),
     }
 }
 
-/// Ucapkan pengumuman pembayaran berhasil; suara diputar thread terpisah agar POS tidak menunggu.
-fn speak_payment(app: &AppHandle, origin: &str, request: &Value) -> Value {
-    if !is_allowed(app, origin) {
-        return json!({ "ok": false, "error": tr(app, "Situs ini belum diizinkan di aplikasi POS Agent", "This site is not yet allowed in the POS Agent app") });
-    }
-    let Some(amount) = request["amount"].as_f64() else {
-        return json!({ "ok": false, "error": tr(app, "Amount harus berupa angka", "Amount must be a number") });
-    };
-    let method = request["method"].as_str().unwrap_or_default();
-    let language = voice_lang(app);
-    let Some(text) = voice::payment_text(language, method, amount) else {
-        return json!({ "ok": false, "error": tr(app, "Method harus cash, edc, atau qris, dan amount harus angka positif", "Method must be cash, edc, or qris, and amount must be a positive number") });
-    };
-    let app = app.clone();
-    thread::spawn(move || speak_text(&app, &text, true));
-    json!({ "ok": true })
+fn not_allowed(lang: &str) -> Value {
+    json!({ "ok": false, "error": pick(lang, "Situs ini belum diizinkan di aplikasi POS Agent", "This site is not yet allowed in the POS Agent app") })
 }
 
-/// Ucapkan teks bebas dari POS; `coin: true` menambahkan denting koin di depan.
-fn say(app: &AppHandle, origin: &str, request: &Value) -> Value {
-    if !is_allowed(app, origin) {
-        return json!({ "ok": false, "error": tr(app, "Situs ini belum diizinkan di aplikasi POS Agent", "This site is not yet allowed in the POS Agent app") });
+/// Teks yang diucapkan untuk perintah `speak` (pengumuman pembayaran) atau `say` (teks bebas),
+/// beserta apakah denting koin diputar di depan. Galat dalam bahasa tampilan.
+fn speech_request(config: &Config, request: &Value) -> Result<(String, bool), String> {
+    let lang = ui_lang(config);
+    if request["type"] == "speak" {
+        let amount = request["amount"].as_f64().ok_or_else(|| pick(lang, "Amount harus berupa angka", "Amount must be a number"))?;
+        let method = request["method"].as_str().unwrap_or_default();
+        let text = voice::payment_text(voice_lang_of(config), method, amount).ok_or_else(|| {
+            pick(lang, "Method harus cash, edc, atau qris, dan amount harus angka positif", "Method must be cash, edc, or qris, and amount must be a positive number")
+        })?;
+        return Ok((text, true));
     }
     let text = request["text"].as_str().unwrap_or_default().trim().to_string();
     if text.is_empty() || text.chars().count() > 500 {
-        return json!({ "ok": false, "error": tr(app, "Text wajib diisi, maksimal 500 karakter", "Text is required, at most 500 characters") });
+        return Err(pick(lang, "Text wajib diisi, maksimal 500 karakter", "Text is required, at most 500 characters"));
     }
-    let coin = request["coin"].as_bool().unwrap_or(false);
-    let app = app.clone();
-    thread::spawn(move || speak_text(&app, &text, coin));
-    json!({ "ok": true })
+    Ok((text, request["coin"].as_bool().unwrap_or(false)))
+}
+
+/// Perintah `speak`/`say`: periksa izin dan isi, lalu ucapkan di thread terpisah agar POS tidak menunggu.
+fn handle_speech(config: &Config, models: Vec<PathBuf>, origin: &str, request: &Value) -> Value {
+    if !config.origins.iter().any(|o| o == origin) {
+        return not_allowed(ui_lang(config));
+    }
+    match speech_request(config, request) {
+        Ok((text, coin)) => {
+            let (language, steps) = (voice_lang_of(config), config.voice_steps);
+            thread::spawn(move || speak(&models, language, steps, &text, coin));
+            json!({ "ok": true })
+        }
+        Err(error) => json!({ "ok": false, "error": error }),
+    }
+}
+
+fn speak_text(app: &AppHandle, text: &str, coin: bool) {
+    let (language, steps) = {
+        let config = app.state::<Mutex<Config>>();
+        let config = config.lock().unwrap();
+        (voice_lang_of(&config), config.voice_steps)
+    };
+    speak(&model_dir_candidates(app), language, steps, text, coin);
 }
 
 /// Ucapkan pengumuman: denting koin + suara natural Supertonic bila model tersedia,
 /// selain itu jatuh ke mesin TTS OS.
-fn speak_text(app: &AppHandle, text: &str, coin: bool) {
+fn speak(models: &[PathBuf], language: &str, steps: i32, text: &str, coin: bool) {
     // Antrekan bila ada pengumuman lain sedang berbicara
-    let server = app.state::<Server>();
-    let _guard = server.speaking.lock().unwrap();
-    let language = voice_lang(app);
+    let _guard = SPEAKING.lock().unwrap_or_else(|e| e.into_inner());
     let text = &voice::normalize_text(language, text);
-    let steps = app.state::<Mutex<Config>>().lock().unwrap().voice_steps.clamp(2, 10);
-    if let Some(model) = audio::find_model_dir(&model_dir_candidates(app)) {
-        if audio::speak_supertonic(&model, coin.then_some(COIN), text, steps, language) {
+    if let Some(model) = audio::find_model_dir(models) {
+        if audio::speak_supertonic(&model, coin.then_some(COIN), text, steps.clamp(2, 10), language) {
             return;
         }
         eprintln!("POS Agent: gagal memuat model Supertonic, pakai TTS OS");
@@ -734,7 +764,8 @@ fn model_dir_candidates(app: &AppHandle) -> Vec<PathBuf> {
     dirs
 }
 
-fn serve(app: AppHandle, stream: TcpStream) {
+/// Satu koneksi WebSocket: setiap pesan teks JSON dijawab `respond(origin, request)`.
+fn serve(stream: TcpStream, respond: impl Fn(&str, &Value) -> Value) {
     let mut origin = String::new();
     let handshake = accept_hdr(stream, |request: &Request, response: Response| {
         origin = request.headers().get("origin").and_then(|v| v.to_str().ok()).unwrap_or_default().to_string();
@@ -746,13 +777,17 @@ fn serve(app: AppHandle, stream: TcpStream) {
             continue;
         }
         let request = serde_json::from_str(message.to_text().unwrap_or_default()).unwrap_or(Value::Null);
-        if socket.send(Message::text(respond(&app, &origin, &request).to_string())).is_err() {
+        if socket.send(Message::text(respond(&origin, &request).to_string())).is_err() {
             break;
         }
     }
 }
 
 fn main() {
+    if std::env::args().any(|arg| arg == "--headless") {
+        headless::run();
+        return;
+    }
     // Wayland melarang aplikasi menentukan posisi jendelanya; lewat X11 (XWayland) boleh
     #[cfg(target_os = "linux")]
     std::env::set_var("GDK_BACKEND", "x11");

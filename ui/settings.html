@@ -187,7 +187,7 @@
         <li><code>say</code>: ucapkan teks bebas lewat speaker. <code>text</code> wajib, maksimal 500 karakter; <code>coin</code> opsional (<code>true</code> = denting koin di depan, bawaan <code>false</code>). Hanya untuk situs yang sudah diizinkan.</li>
       </ul>
       <pre><code>{"type":"ping"}
-→ {"ok":true,"version":"0.6.0","monitor":true}
+→ {"ok":true,"version":"0.7.0","monitor":true}
 
 {"type":"open","url":"https://pos.contoh.com/layar-pelanggan"}
 → {"ok":true}
@@ -204,6 +204,7 @@
 // contoh gagal
 → {"ok":false,"error":"Alamat tidak berasal dari situs POS ini"}</code></pre>
       <p><code>close</code> juga melupakan alamat terakhir, jadi saat login berikutnya layar pelanggan menampilkan halaman bawaan sampai POS mengirim <code>open</code> lagi.</p>
+      <p><b>Mode tanpa UI:</b> jalankan <code>pos-agent --headless</code> dari terminal Linux atau cmd Windows. Hanya WebSocket (<code>ping</code>, <code>speak</code>, <code>say</code>) dan suara yang berjalan; tidak ada jendela, tray, maupun layar pelanggan, dan hanya situs yang sudah diizinkan yang dilayani. Jangan jalankan bersamaan dengan mode biasa karena memakai port yang sama.</p>
       <p>Kata QRIS diucapkan &quot;keris&quot;. Suara natural Supertonic 3 Bahasa Indonesia dipakai bila folder <code>tts-model</code> ada di folder konfigurasi aplikasi; tanpa itu suara mengikuti TTS OS. Model bisa diunduh lewat tombol di tab Pengaturan.</p>
     </div>
 
@@ -255,7 +256,7 @@
         <li><code>say</code>: speak any text through the speakers. <code>text</code> is required, at most 500 characters; <code>coin</code> is optional (<code>true</code> = leading coin chime, default <code>false</code>). Only for already-allowed sites.</li>
       </ul>
       <pre><code>{"type":"ping"}
-→ {"ok":true,"version":"0.6.0","monitor":true}
+→ {"ok":true,"version":"0.7.0","monitor":true}
 
 {"type":"open","url":"https://pos.example.com/customer-display"}
 → {"ok":true}
@@ -272,6 +273,7 @@
 // failure example
 → {"ok":false,"error":"Address does not belong to this POS site"}</code></pre>
       <p><code>close</code> also forgets the last address, so at the next login the customer display shows the default page until the POS sends <code>open</code> again.</p>
+      <p><b>Headless mode:</b> run <code>pos-agent --headless</code> from a Linux terminal or Windows cmd. Only the WebSocket (<code>ping</code>, <code>speak</code>, <code>say</code>) and voice run; there are no windows, tray, or customer display, and only already-allowed sites are served. Do not run it alongside normal mode since both use the same port.</p>
       <p>The word QRIS is pronounced like &quot;keris&quot; (the traditional dagger). The natural Supertonic 3 Indonesian voice is used when the <code>tts-model</code> folder exists in the app config folder; otherwise the OS TTS engine is used. The model can be downloaded via the button in the Settings tab.</p>
     </div>
   </section>
