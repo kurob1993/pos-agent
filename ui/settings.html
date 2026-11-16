@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="id">
 <meta charset="utf-8">
-<title>Layar Pelanggan</title>
+<title>POS Agent</title>
 <link rel="stylesheet" href="ui.css">
 <style>
   main { max-width: 640px; margin: 0 auto; padding: 24px; }
@@ -187,7 +187,7 @@
         <li><code>say</code>: ucapkan teks bebas lewat speaker. <code>text</code> wajib, maksimal 500 karakter; <code>coin</code> opsional (<code>true</code> = denting koin di depan, bawaan <code>false</code>). Hanya untuk situs yang sudah diizinkan.</li>
       </ul>
       <pre><code>{"type":"ping"}
-→ {"ok":true,"version":"0.5.1","monitor":true}
+→ {"ok":true,"version":"0.6.0","monitor":true}
 
 {"type":"open","url":"https://pos.contoh.com/layar-pelanggan"}
 → {"ok":true}
@@ -255,7 +255,7 @@
         <li><code>say</code>: speak any text through the speakers. <code>text</code> is required, at most 500 characters; <code>coin</code> is optional (<code>true</code> = leading coin chime, default <code>false</code>). Only for already-allowed sites.</li>
       </ul>
       <pre><code>{"type":"ping"}
-→ {"ok":true,"version":"0.5.1","monitor":true}
+→ {"ok":true,"version":"0.6.0","monitor":true}
 
 {"type":"open","url":"https://pos.example.com/customer-display"}
 → {"ok":true}
@@ -283,7 +283,7 @@
 
   const T = {
     id: {
-      title: 'Layar Pelanggan', tab_settings: 'Pengaturan', tab_usage: 'Cara penggunaan',
+      title: 'POS Agent', tab_settings: 'Pengaturan', tab_usage: 'Cara penggunaan',
       sec_display: 'Tampilan', sec_connection: 'Koneksi', sec_general: 'Umum',
       monitor: 'Monitor', monitor_auto: 'Otomatis (monitor kedua)', monitor_primary: 'utama', monitor_off: 'tidak tersambung',
       mode: 'Mode jendela', mode_full: 'Layar penuh', mode_window: 'Jendela (di tengah monitor)',
@@ -319,7 +319,7 @@
       saved: 'Tersimpan.', saved_conn: 'Tersimpan. Pastikan halaman POS memakai port yang sama.', refreshed: 'Daftar monitor dimuat ulang.',
     },
     en: {
-      title: 'Customer Display', tab_settings: 'Settings', tab_usage: 'How to use',
+      title: 'POS Agent', tab_settings: 'Settings', tab_usage: 'How to use',
       sec_display: 'Display', sec_connection: 'Connection', sec_general: 'General',
       monitor: 'Monitor', monitor_auto: 'Automatic (second monitor)', monitor_primary: 'primary', monitor_off: 'not connected',
       mode: 'Window mode', mode_full: 'Fullscreen', mode_window: 'Window (centered on the monitor)',

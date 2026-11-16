@@ -2381,29 +2381,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "layar-pelanggan"
-version = "0.5.1"
-dependencies = [
- "bzip2 0.5.2",
- "cpal",
- "hound",
- "rodio",
- "serde",
- "serde_json",
- "sherpa-onnx",
- "sys-locale",
- "tar",
- "tauri",
- "tauri-build",
- "tauri-plugin-autostart",
- "tauri-plugin-dialog",
- "tauri-plugin-single-instance",
- "tts",
- "tungstenite",
- "ureq",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3373,6 +3350,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10ab3eb7f3becc3a1cbc4f2c6f20267996cfc1a6467a873763411b136a122715"
 dependencies = [
  "portable-atomic",
+]
+
+[[package]]
+name = "pos-agent"
+version = "0.6.0"
+dependencies = [
+ "bzip2 0.5.2",
+ "cpal",
+ "hound",
+ "rodio",
+ "serde",
+ "serde_json",
+ "sherpa-onnx",
+ "sys-locale",
+ "tar",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-autostart",
+ "tauri-plugin-dialog",
+ "tauri-plugin-single-instance",
+ "tts",
+ "tungstenite",
+ "ureq",
 ]
 
 [[package]]

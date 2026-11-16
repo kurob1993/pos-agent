@@ -1,6 +1,6 @@
 {
-  "name": "layar-pelanggan",
-  "version": "0.5.1",
+  "name": "pos-agent",
+  "version": "0.6.0",
   "private": true,
   "scripts": {
     "dev": "tauri dev",

@@ -1,4 +1,4 @@
-// Layar Pelanggan: aplikasi tray di PC kasir. Halaman kasir (browser apa pun) mengirim alamat layar
+// POS Agent: aplikasi tray di PC kasir. Halaman kasir (browser apa pun) mengirim alamat layar
 // pelanggan lewat WebSocket lokal, lalu aplikasi ini menampilkannya layar penuh di monitor kedua.
 // Alamat terakhir disimpan (last_url di config.json), jadi saat login layar bisa langsung tampil tanpa menunggu kasir.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -128,6 +128,16 @@ struct TrayItems {
     settings: MenuItem<tauri::Wry>,
     show: MenuItem<tauri::Wry>,
     quit: MenuItem<tauri::Wry>,
+}
+
+/// Aplikasi dulu bernama "Layar Pelanggan": pindahkan folder konfigurasinya (izin situs, pengaturan,
+/// model suara ±139 MB) ke folder baru sekali saja, bila folder baru belum ada.
+fn migrate_old_config(app: &AppHandle) {
+    let Ok(new) = app.path().app_config_dir() else { return };
+    let Some(old) = new.parent().map(|dir| dir.join("id.co.krakatau-it.pos.layar-pelanggan")) else { return };
+    if old.is_dir() && !new.exists() {
+        let _ = fs::rename(&old, &new);
+    }
 }
 
 fn config_path(app: &AppHandle) -> Option<PathBuf> {
@@ -314,7 +324,7 @@ fn startup(app: AppHandle) {
 
 fn open_picker(app: &AppHandle) {
     let _ = WebviewWindowBuilder::new(app, PICKER, WebviewUrl::App("picker.html".into()))
-        .title("Layar Pelanggan")
+        .title("POS Agent")
         .inner_size(440.0, 420.0)
         .resizable(false)
         .always_on_top(true)
@@ -346,7 +356,7 @@ fn open_settings(app: &AppHandle) {
         return;
     }
     let _ = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App("settings.html".into()))
-        .title("Layar Pelanggan")
+        .title("POS Agent")
         .inner_size(520.0, 700.0)
         .min_inner_size(420.0, 480.0)
         .build();
@@ -603,7 +613,7 @@ fn allowed(app: &AppHandle, origin: &str) -> bool {
             &format!("Izinkan {origin} menampilkan layar pelanggan di monitor kedua?"),
             &format!("Allow {origin} to show the customer display on the second monitor?"),
         ))
-        .title("Layar Pelanggan")
+        .title("POS Agent")
         .buttons(MessageDialogButtons::OkCancelCustom(tr(app, "Izinkan", "Allow"), tr(app, "Tolak", "Deny")))
         .blocking_show();
     if ok {
@@ -624,7 +634,7 @@ fn respond(app: &AppHandle, origin: &str, request: &Value) -> Value {
                 return json!({ "ok": false, "error": tr(app, "Alamat tidak berasal dari situs POS ini", "Address does not belong to this POS site") });
             }
             if !allowed(app, origin) {
-                return json!({ "ok": false, "error": tr(app, "Situs ini ditolak di aplikasi Layar Pelanggan", "This site was denied in the Customer Display app") });
+                return json!({ "ok": false, "error": tr(app, "Situs ini ditolak di aplikasi POS Agent", "This site was denied in the POS Agent app") });
             }
             match show(app, url) {
                 Ok(()) => {
@@ -640,7 +650,7 @@ fn respond(app: &AppHandle, origin: &str, request: &Value) -> Value {
         Some("close") => {
             // Menutup tidak boleh memicu dialog izin: hanya situs yang sudah diizinkan
             if !is_allowed(app, origin) {
-                return json!({ "ok": false, "error": tr(app, "Situs ini belum diizinkan di aplikasi Layar Pelanggan", "This site is not yet allowed in the Customer Display app") });
+                return json!({ "ok": false, "error": tr(app, "Situs ini belum diizinkan di aplikasi POS Agent", "This site is not yet allowed in the POS Agent app") });
             }
             if let Some(window) = app.get_webview_window(WINDOW) {
                 let _ = window.close();
@@ -661,7 +671,7 @@ fn respond(app: &AppHandle, origin: &str, request: &Value) -> Value {
 /// Ucapkan pengumuman pembayaran berhasil; suara diputar thread terpisah agar POS tidak menunggu.
 fn speak_payment(app: &AppHandle, origin: &str, request: &Value) -> Value {
     if !is_allowed(app, origin) {
-        return json!({ "ok": false, "error": tr(app, "Situs ini belum diizinkan di aplikasi Layar Pelanggan", "This site is not yet allowed in the Customer Display app") });
+        return json!({ "ok": false, "error": tr(app, "Situs ini belum diizinkan di aplikasi POS Agent", "This site is not yet allowed in the POS Agent app") });
     }
     let Some(amount) = request["amount"].as_f64() else {
         return json!({ "ok": false, "error": tr(app, "Amount harus berupa angka", "Amount must be a number") });
@@ -679,7 +689,7 @@ fn speak_payment(app: &AppHandle, origin: &str, request: &Value) -> Value {
 /// Ucapkan teks bebas dari POS; `coin: true` menambahkan denting koin di depan.
 fn say(app: &AppHandle, origin: &str, request: &Value) -> Value {
     if !is_allowed(app, origin) {
-        return json!({ "ok": false, "error": tr(app, "Situs ini belum diizinkan di aplikasi Layar Pelanggan", "This site is not yet allowed in the Customer Display app") });
+        return json!({ "ok": false, "error": tr(app, "Situs ini belum diizinkan di aplikasi POS Agent", "This site is not yet allowed in the POS Agent app") });
     }
     let text = request["text"].as_str().unwrap_or_default().trim().to_string();
     if text.is_empty() || text.chars().count() > 500 {
@@ -704,12 +714,12 @@ fn speak_text(app: &AppHandle, text: &str, coin: bool) {
         if audio::speak_supertonic(&model, coin.then_some(COIN), text, steps, language) {
             return;
         }
-        eprintln!("Layar Pelanggan: gagal memuat model Supertonic, pakai TTS OS");
+        eprintln!("POS Agent: gagal memuat model Supertonic, pakai TTS OS");
     }
     if (!coin || audio::play_coin(COIN).is_ok()) && audio::speak_os(language, text) {
         return;
     }
-    eprintln!("Layar Pelanggan: tidak ada mesin suara yang bisa dipakai");
+    eprintln!("POS Agent: tidak ada mesin suara yang bisa dipakai");
 }
 
 /// Lokasi model Supertonic yang dicari: folder konfigurasi lalu folder resource aplikasi.
@@ -764,6 +774,7 @@ fn main() {
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .setup(|app| {
             let handle = app.handle().clone();
+            migrate_old_config(&handle);
             let config: Config = config_path(&handle)
                 .and_then(|path| fs::read(path).ok())
                 .and_then(|bytes| serde_json::from_slice(&bytes).ok())
@@ -782,7 +793,7 @@ fn main() {
             app.manage(TrayItems { settings, show: reshow, quit });
 
             let mut tray = TrayIconBuilder::new()
-                .tooltip("Layar Pelanggan")
+                .tooltip("POS Agent")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => app.exit(0),
@@ -817,7 +828,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("gagal menjalankan Layar Pelanggan")
+        .expect("gagal menjalankan POS Agent")
         .run(|app, event| match event {
             // Tetap hidup di tray walau jendela layar pelanggan ditutup; keluar hanya lewat menu tray
             RunEvent::ExitRequested { api, code: None, .. } => api.prevent_exit(),

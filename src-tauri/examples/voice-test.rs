@@ -17,7 +17,7 @@ fn main() {
         .map(PathBuf::from)
         .or_else(|_| std::env::var("HOME").map(|h| PathBuf::from(h).join(".config")))
         .unwrap_or_default()
-        .join("id.co.krakatau-it.pos.layar-pelanggan")
+        .join("id.co.krakatau-it.pos-agent")
         .join("tts-model");
     let coin = include_bytes!("../assets/coin.wav");
     let model = audio::find_model_dir(&[config.clone()]);

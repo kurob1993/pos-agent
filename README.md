@@ -1,7 +1,9 @@
-# Layar Pelanggan / Customer Display
+# POS Agent
 
-Aplikasi tray untuk PC kasir yang menampilkan layar pelanggan POS layar penuh di monitor kedua.
-A tray app for the cashier PC that shows the POS customer display fullscreen on a second monitor.
+Aplikasi tray untuk PC kasir: menampilkan layar pelanggan POS layar penuh di monitor kedua dan memutar pengumuman suara pembayaran.
+A tray app for the cashier PC: shows the POS customer display fullscreen on a second monitor and plays payment voice announcements.
+
+Dulu bernama "Layar Pelanggan". Saat pertama dijalankan, folder konfigurasi lama (izin situs, pengaturan, model suara) dipindahkan otomatis. Hapus paket lama `layar-pelanggan` agar tidak ikut jalan saat login. / Formerly "Layar Pelanggan". On first start the old config folder (site permissions, settings, voice model) is moved automatically. Uninstall the old `layar-pelanggan` package so it does not also start at login.
 
 ## Cara penggunaan (ID)
 
@@ -29,7 +31,7 @@ Pesan JSON lewat WebSocket / JSON messages over the WebSocket:
 
 ```json
 {"type":"ping"}
-{"ok":true,"version":"0.5.1","monitor":true}
+{"ok":true,"version":"0.6.0","monitor":true}
 
 {"type":"open","url":"https://pos.example.com/customer-display"}
 {"ok":true}
@@ -81,13 +83,13 @@ Cara manual (tanpa tombol): / Manual steps (without the button):
 ```sh
 # Linux (jalankan sebagai pengguna yang sama dengan yang menjalankan aplikasi / run as the same user that runs the app)
 wget -O /tmp/tts.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2
-mkdir -p ~/.config/id.co.krakatau-it.pos.layar-pelanggan
-tar -xjf /tmp/tts.tar.bz2 -C ~/.config/id.co.krakatau-it.pos.layar-pelanggan
-mv ~/.config/id.co.krakatau-it.pos.layar-pelanggan/sherpa-onnx-supertonic-3-tts-int8-2026-05-11 \
-   ~/.config/id.co.krakatau-it.pos.layar-pelanggan/tts-model
+mkdir -p ~/.config/id.co.krakatau-it.pos-agent
+tar -xjf /tmp/tts.tar.bz2 -C ~/.config/id.co.krakatau-it.pos-agent
+mv ~/.config/id.co.krakatau-it.pos-agent/sherpa-onnx-supertonic-3-tts-int8-2026-05-11 \
+   ~/.config/id.co.krakatau-it.pos-agent/tts-model
 ```
 
-Windows: ekstrak isi arsip ke `%APPDATA%\id.co.krakatau-it.pos.layar-pelanggan\tts-model\` (folder yang sama dengan `config.json`). / On Windows, extract the archive into `%APPDATA%\id.co.krakatau-it.pos.layar-pelanggan\tts-model\` (the folder that also holds `config.json`).
+Windows: ekstrak isi arsip ke `%APPDATA%\id.co.krakatau-it.pos-agent\tts-model\` (folder yang sama dengan `config.json`). / On Windows, extract the archive into `%APPDATA%\id.co.krakatau-it.pos-agent\tts-model\` (the folder that also holds `config.json`).
 
 - Model ±139 MB, 100% offline, lisensi OpenRAIL-M (berkas LICENSE ikut dalam arsip). / The model is ±139 MB, fully offline, OpenRAIL-M licensed (LICENSE file included in the archive).
 - Pengumuman pertama setelah aplikasi berjalan lebih lambat (memuat model ±beberapa detik); setelahnya langsung. / The first announcement after the app starts is slower (loading the model, ±seconds); subsequent ones are instant.

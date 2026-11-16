@@ -1,7 +1,7 @@
 [package]
-name = "layar-pelanggan"
-version = "0.5.1"
-description = "Layar pelanggan POS di monitor kedua"
+name = "pos-agent"
+version = "0.6.0"
+description = "Agen PC kasir POS: layar pelanggan di monitor kedua dan pengumuman suara"
 edition = "2021"
 
 [build-dependencies]

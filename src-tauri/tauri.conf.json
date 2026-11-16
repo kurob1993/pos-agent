@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Layar Pelanggan",
-  "version": "0.5.1",
-  "identifier": "id.co.krakatau-it.pos.layar-pelanggan",
+  "productName": "POS Agent",
+  "version": "0.6.0",
+  "identifier": "id.co.krakatau-it.pos-agent",
   "build": { "frontendDist": "../ui" },
   "app": { "windows": [], "withGlobalTauri": true, "security": { "csp": null } },
   "bundle": {

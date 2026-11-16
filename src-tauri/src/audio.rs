@@ -123,7 +123,7 @@ pub fn speak_supertonic(model_dir: &Path, coin: Option<&[u8]>, text: &str, steps
     });
     // Galat pemutaran hanya dicatat: fallback ke TTS OS di sini membuat kalimat terucap dua kali
     if let Err(error) = play_sources(coin.into_iter().chain(speech)) {
-        eprintln!("Layar Pelanggan: gagal memutar suara ({error})");
+        eprintln!("POS Agent: gagal memutar suara ({error})");
     }
     true
 }
@@ -168,7 +168,7 @@ fn play_sources(mut sources: impl Iterator<Item = (Vec<f32>, u32)>) -> Result<()
     if result.is_ok() {
         return result;
     }
-    eprintln!("Layar Pelanggan: aliran audio bermasalah, mencoba ulang");
+    eprintln!("POS Agent: aliran audio bermasalah, mencoba ulang");
     play_once(played.into_iter().chain(sources))
 }
 
@@ -178,7 +178,7 @@ fn play_once(sources: impl Iterator<Item = (Vec<f32>, u32)>) -> Result<(), Strin
     let mut device = rodio::DeviceSinkBuilder::from_default_device()
         .map_err(|e| e.to_string())?
         .with_error_callback(move |err| {
-            eprintln!("Layar Pelanggan: galat aliran audio ({err})");
+            eprintln!("POS Agent: galat aliran audio ({err})");
             flag.store(true, Ordering::SeqCst);
         })
         .open_stream()
