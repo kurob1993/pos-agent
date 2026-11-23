@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="id">
+<meta charset="utf-8">
+<title>Iklan</title>
+<style>
+html,body { margin:0; width:100%; height:100%; background:#111; color:#fff; font-family:system-ui,sans-serif; }
+body { display:grid; place-items:center; overflow:hidden; }
+#text { padding:5vw; font-size:clamp(24px,5vw,96px); text-align:center; white-space:pre-wrap; overflow-wrap:anywhere; }
+#text,img,video { grid-area:1 / 1; }
+#text { z-index:1; pointer-events:none; }
+img,video { width:100vw; height:100vh; object-fit:contain; }
+[hidden] { display:none; }
+</style>
+<body>
+<main id="text" role="status"></main><img id="image" alt="Iklan" hidden><video id="video" autoplay muted loop playsinline hidden></video>
+<script>
+const text = document.getElementById('text');
+let mediaObjectUrl;
+window.addEventListener('pagehide', () => {
+  if (mediaObjectUrl) URL.revokeObjectURL(mediaObjectUrl);
+});
+window.__TAURI__.core.invoke('get_ad').then(async ad => {
+  if (ad.kind === 'text') { text.textContent = ad.content; return; }
+  text.hidden = true;
+  const media = document.getElementById(ad.kind);
+  if (ad.kind === 'video') {
+    media.muted = true;
+    media.loop = true;
+    media.autoplay = true;
+  }
+  media.hidden = false;
+  media.onerror = () => { media.hidden = true; text.hidden = false; text.textContent = 'Media iklan tidak dapat dimuat / Unable to load ad media' + (media.error ? ` (${media.error.code})` : ''); };
+  const remote = /^https?:\/\//i.test(ad.content);
+  const source = remote ? ad.content : window.__TAURI__.core.convertFileSrc(ad.content);
+  // WebKit/GStreamer tidak selalu bisa memutar video dari skema asset:// secara langsung.
+  if (ad.kind === 'video' && !remote) {
+    text.hidden = false;
+    text.textContent = 'Memuat video… / Loading video…';
+    const response = await fetch(source);
+    if (!response.ok) throw new Error(`Media HTTP ${response.status}`);
+    mediaObjectUrl = URL.createObjectURL(await response.blob());
+    media.onloadeddata = () => { text.hidden = true; };
+    media.onplaying = () => { text.hidden = true; };
+    media.src = mediaObjectUrl;
+  } else {
+    media.src = source;
+  }
+}).catch(error => {
+  document.querySelectorAll('img,video').forEach(media => { media.hidden = true; });
+  text.hidden = false;
+  text.textContent = `Iklan tidak tersedia / Ad unavailable: ${error.message || error}`;
+});
+</script>
+</body>
+</html>

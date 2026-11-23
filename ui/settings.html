@@ -21,6 +21,10 @@
   legend, label.title { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 500; }
   .row { display: flex; gap: 12px; }
   .row > div { flex: 1; }
+  .port-control { display: flex; align-items: flex-end; gap: 8px; }
+  .port-control input { flex: 1; min-width: 0; }
+  #check-port { flex: 0 0 auto; padding: 0 12px; white-space: nowrap; font-size: 13px; font-weight: 500; line-height: 1; }
+  #port-status { min-height: 1.3em; margin-top: 6px; font-size: 13px; color: var(--muted-foreground); }
   .check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   .hint { margin: 6px 0 0; font-size: 13px; color: var(--muted-foreground); }
   .warn { margin: 10px 0 0; padding: 10px 12px; border: 1px solid var(--warning-border); border-radius: var(--radius); background: var(--warning-bg); color: var(--warning); font-size: 13px; }
@@ -36,10 +40,26 @@
   <header><h1 data-i18n="title"></h1><span id="version" class="badge"></span></header>
 
   <div class="tabs" role="tablist">
+    <button id="tab-ads" role="tab" aria-selected="false" data-i18n="tab_ads"></button>
     <button id="tab-settings" role="tab" aria-selected="true" data-i18n="tab_settings"></button>
     <button id="tab-usage" role="tab" aria-selected="false" data-i18n="tab_usage"></button>
   </div>
 
+  <section id="panel-ads" class="card" hidden>
+    <h2 data-i18n="tab_ads"></h2>
+    <fieldset><label class="check"><input id="ads-enabled" type="checkbox"><span data-i18n="ads_enabled"></span></label></fieldset>
+    <fieldset><label class="title" for="ads-kind" data-i18n="ads_kind"></label>
+      <select id="ads-kind"><option value="text" data-i18n="ads_text"></option><option value="image" data-i18n="ads_image"></option><option value="video" data-i18n="ads_video"></option><option value="web">Web</option></select>
+    </fieldset>
+    <fieldset><label class="title" for="ads-content" data-i18n="ads_content"></label><input id="ads-content" type="text"><p class="hint" data-i18n="ads_hint"></p></fieldset>
+    <button id="ads-file" class="btn btn-outline" data-i18n="ads_file" hidden></button>
+    <fieldset><label class="title" for="ads-idle" data-i18n="ads_idle"></label><input id="ads-idle" type="number" min="1" max="86400" value="30"></fieldset>
+    <div class="footer" style="margin-top:16px">
+      <button id="ads-save" class="btn" data-i18n="save"></button>
+      <button id="ads-show" class="btn btn-outline" data-i18n="ads_show"></button>
+    </div>
+    <p id="ads-status" role="status"></p>
+  </section>
   <section id="panel-settings" class="card">
     <div id="listener-error" class="alert" hidden></div>
 
@@ -75,9 +95,13 @@
         <label class="title" for="host" data-i18n="host"></label>
         <input id="host" type="text" spellcheck="false" autocomplete="off">
       </div>
-      <div style="flex: 0 0 120px">
+      <div style="flex: 0 0 210px">
         <label class="title" for="port" data-i18n="port"></label>
-        <input id="port" type="number" min="1024" max="65535">
+        <div class="port-control">
+          <input id="port" type="number" min="1024" max="65535">
+          <button id="check-port" class="btn btn-outline" type="button" data-i18n="check_port"></button>
+        </div>
+        <div id="port-status" role="status" aria-live="polite"></div>
       </div>
     </fieldset>
     <p class="hint" data-i18n="conn_hint"></p>
@@ -285,12 +309,17 @@
 
   const T = {
     id: {
+      ads_file: 'Pilih file media…', ads_media_hint: 'Pilih file dari komputer atau isi URL HTTP/HTTPS. File disalin ke folder data aplikasi. Video diputar berulang tanpa suara; dukungan format mengikuti sistem.',
+      ads_web_hint: 'Isi URL HTTP/HTTPS halaman web. Situs dibuka langsung di layar pelanggan. Request open dari POS mengembalikan tampilan POS.',
+      ads_show: 'Tampilkan sekarang', ads_shown: 'Iklan ditampilkan di layar pelanggan.',
+      tab_ads: 'Iklan', ads_enabled: 'Tampilkan iklan saat tidak ada request tampilan', ads_kind: 'Jenis iklan', ads_text: 'Teks', ads_image: 'Gambar', ads_video: 'Video', ads_content: 'Konten iklan', ads_hint: 'Isi teks atau URL HTTP/HTTPS gambar atau video. Video diputar berulang tanpa suara. Request open dari POS mengembalikan tampilan POS.', ads_idle: 'Waktu tunggu (detik)',
       title: 'POS Agent', tab_settings: 'Pengaturan', tab_usage: 'Cara penggunaan',
       sec_display: 'Tampilan', sec_connection: 'Koneksi', sec_general: 'Umum',
       monitor: 'Monitor', monitor_auto: 'Otomatis (monitor kedua)', monitor_primary: 'utama', monitor_off: 'tidak tersambung',
       mode: 'Mode jendela', mode_full: 'Layar penuh', mode_window: 'Jendela (di tengah monitor)',
       width: 'Lebar (piksel)', height: 'Tinggi (piksel)',
       host: 'Host', port: 'Port',
+      check_port: 'Cek port', port_checking: 'Memeriksa…', port_available: 'Port tersedia.', port_busy: 'Port sedang digunakan.',
       conn_hint: 'Alamat WebSocket yang didengarkan aplikasi. Bawaan 127.0.0.1:8183 (hanya PC ini). Halaman POS harus memakai port yang sama.',
       warn_exposed: 'Host ini bisa dijangkau dari komputer lain di jaringan. Siapa pun di jaringan dapat mencoba mengirim perintah ke layar pelanggan. Gunakan 127.0.0.1 kecuali memang perlu.',
       language: 'Bahasa tampilan', lang_auto: 'Otomatis (ikut sistem)',
@@ -321,12 +350,17 @@
       saved: 'Tersimpan.', saved_conn: 'Tersimpan. Pastikan halaman POS memakai port yang sama.', refreshed: 'Daftar monitor dimuat ulang.',
     },
     en: {
+      ads_file: 'Choose media file…', ads_media_hint: 'Choose a file from this computer or enter an HTTP/HTTPS URL. Files are copied to app data. Videos loop muted; format support depends on the system.',
+      ads_web_hint: 'Enter an HTTP/HTTPS web page URL. The site opens directly on the customer screen. A POS open request restores the POS display.',
+      ads_show: 'Show now', ads_shown: 'Ad displayed on the customer screen.',
+      tab_ads: 'Ads', ads_enabled: 'Show ads when no display request arrives', ads_kind: 'Ad type', ads_text: 'Text', ads_image: 'Image', ads_video: 'Video', ads_content: 'Ad content', ads_hint: 'Enter text or an HTTP/HTTPS image or video URL. Videos loop muted. A POS open request restores the POS display.', ads_idle: 'Idle time (seconds)',
       title: 'POS Agent', tab_settings: 'Settings', tab_usage: 'How to use',
       sec_display: 'Display', sec_connection: 'Connection', sec_general: 'General',
       monitor: 'Monitor', monitor_auto: 'Automatic (second monitor)', monitor_primary: 'primary', monitor_off: 'not connected',
       mode: 'Window mode', mode_full: 'Fullscreen', mode_window: 'Window (centered on the monitor)',
       width: 'Width (pixels)', height: 'Height (pixels)',
       host: 'Host', port: 'Port',
+      check_port: 'Check port', port_checking: 'Checking…', port_available: 'Port is available.', port_busy: 'Port is already in use.',
       conn_hint: 'WebSocket address the app listens on. Default 127.0.0.1:8183 (this PC only). The POS page must use the same port.',
       warn_exposed: 'This host is reachable from other computers on the network. Anyone on the network can try to send commands to the customer display. Use 127.0.0.1 unless you really need this.',
       language: 'Display language', lang_auto: 'Automatic (follow system)',
@@ -405,10 +439,18 @@
     document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => (el.placeholder = T[l][el.dataset.i18nPlaceholder]));
     document.querySelectorAll('[data-lang]').forEach((el) => (el.hidden = el.dataset.lang !== l));
     fillMonitors($('monitor').value || null);
+    updateAdHint();
+  }
+
+  function updateAdHint() {
+    const kind = $('ads-kind').value;
+    const media = kind === 'image' || kind === 'video';
+    $('ads-file').hidden = !media;
+    document.querySelector('[data-i18n="ads_hint"]').textContent = t(kind === 'web' ? 'ads_web_hint' : media ? 'ads_media_hint' : 'ads_hint');
   }
 
   function showTab(name) {
-    for (const id of ['settings', 'usage']) {
+    for (const id of ['settings', 'usage', 'ads']) {
       $(`panel-${id}`).hidden = id !== name;
       $(`tab-${id}`).setAttribute('aria-selected', String(id === name));
     }
@@ -427,6 +469,10 @@
     $('height').value = settings.display.height;
     $('host').value = settings.host;
     $('port').value = settings.port;
+    $('ads-enabled').checked = settings.ads.enabled;
+    $('ads-kind').value = settings.ads.kind;
+    $('ads-content').value = settings.ads.content;
+    $('ads-idle').value = settings.ads.idle_seconds;
     $('autostart').checked = settings.autostart;
     $('voice-language').value = settings.voice_language ?? '';
     // nilai di luar pilihan (mis. diubah manual di config.json) jatuh ke yang terdekat
@@ -508,11 +554,33 @@
   $('voice-test').onclick = () => invoke('test_voice', { text: $('voice-text').value });
   $('voice-text').addEventListener('keydown', (e) => e.key === 'Enter' && $('voice-test').click());
 
+  $('check-port').onclick = async () => {
+    const button = $('check-port');
+    const status = $('port-status');
+    button.disabled = true;
+    status.className = '';
+    status.textContent = t('port_checking');
+    try {
+      const available = await invoke('check_port', {
+        host: $('host').value.trim(),
+        port: Number($('port').value) || 0,
+      });
+      status.textContent = t(available ? 'port_available' : 'port_busy');
+      status.className = available ? '' : 'error';
+    } catch (error) {
+      status.textContent = String(error);
+      status.className = 'error';
+    } finally {
+      button.disabled = false;
+    }
+  };
+
   async function save() {
     const connChanged = $('host').value.trim() !== loaded.host || Number($('port').value) !== loaded.port;
     try {
       await invoke('save_settings', {
         settings: {
+          ads: { enabled: $('ads-enabled').checked, kind: $('ads-kind').value, content: $('ads-content').value, idle_seconds: Number($('ads-idle').value) },
           display: {
             monitor: $('monitor').value || null,
             fullscreen: isFullscreen(),
@@ -529,12 +597,47 @@
       });
       await load();
       say(connChanged ? t('saved_conn') : t('saved'));
+      $('ads-status').textContent = t('saved');
+      return true;
     } catch (error) {
       say(String(error), true);
+      $('ads-status').textContent = String(error);
+      return false;
     }
   }
 
   $('save').onclick = save;
+  $('ads-save').onclick = save;
+  $('ads-file').onclick = async () => {
+    const button = $('ads-file');
+    const kind = $('ads-kind').value;
+    button.disabled = true;
+    try {
+      const path = await invoke('pick_ad_media', { kind });
+      if (path && $('ads-kind').value === kind) $('ads-content').value = path;
+    } catch (error) {
+      $('ads-status').textContent = String(error);
+    } finally {
+      button.disabled = false;
+    }
+  };
+  $('ads-kind').addEventListener('change', updateAdHint);
+  $('ads-show').onclick = async () => {
+    const button = $('ads-show');
+    button.disabled = true;
+    try {
+      if (!await save()) return;
+      await invoke('show_ad');
+      $('ads-status').classList.remove('error');
+      $('ads-status').textContent = t('ads_shown');
+    } catch (error) {
+      $('ads-status').classList.add('error');
+      $('ads-status').textContent = String(error);
+    } finally {
+      button.disabled = false;
+    }
+  };
+  $('tab-ads').onclick = () => showTab('ads');
   $('refresh').onclick = () => load().then(() => say(t('refreshed')), (e) => say(String(e), true));
   $('tab-settings').onclick = () => showTab('settings');
   $('tab-usage').onclick = () => showTab('usage');
@@ -542,6 +645,8 @@
   document.querySelectorAll('input[name=mode]').forEach((radio) => radio.addEventListener('change', syncDerived));
   $('host').addEventListener('input', syncDerived);
   $('port').addEventListener('input', syncDerived);
+  $('host').addEventListener('input', () => { $('port-status').textContent = ''; });
+  $('port').addEventListener('input', () => { $('port-status').textContent = ''; });
   load().catch((e) => say(String(e), true));
 </script>
 </body>

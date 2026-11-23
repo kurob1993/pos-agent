@@ -44,7 +44,17 @@ const SETTINGS: &str = "settings";
 const PICKER: &str = "picker";
 
 /// Halaman bawaan (ui/index.html) saat belum ada alamat POS atau alamatnya tidak bisa dijangkau.
-const DEFAULT_PAGE: &str = if cfg!(windows) { "http://tauri.localhost/index.html" } else { "tauri://localhost/index.html" };
+const DEFAULT_PAGE: &str = if cfg!(windows) { "http://tauri.localhost/" } else { "tauri://localhost/" };
+
+/// Ikuti sumber halaman Tauri: dev server saat pengembangan, aset internal pada build terpasang.
+fn app_page(app: &AppHandle, path: &str) -> tauri::Url {
+    let base = if cfg!(dev) {
+        app.config().build.dev_url.clone()
+    } else {
+        None
+    }.unwrap_or_else(|| DEFAULT_PAGE.parse().unwrap());
+    base.join(path).expect("alamat halaman internal tidak sah")
+}
 
 /// Efek suara denting koin yang diputar sebelum setiap pengumuman pembayaran.
 const COIN: &[u8] = include_bytes!("../assets/coin.wav");
@@ -69,7 +79,26 @@ impl Default for DisplayConfig {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
+struct AdConfig {
+    enabled: bool,
+    kind: String,
+    content: String,
+    idle_seconds: u64,
+}
+
+impl Default for AdConfig {
+    fn default() -> Self {
+        Self { enabled: false, kind: "text".into(), content: String::new(), idle_seconds: 30 }
+    }
+}
+
+// Waktu request tampilan terakhir dan apakah iklan sedang ditampilkan.
+struct DisplayActivity(Mutex<(std::time::Instant, bool)>);
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
 struct Config {
+    ads: AdConfig,
     /// Situs POS yang sudah diizinkan pengguna menampilkan layar pelanggan.
     origins: Vec<String>,
     last_url: Option<String>,
@@ -90,6 +119,7 @@ struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            ads: AdConfig::default(),
             origins: Vec::new(),
             last_url: None,
             display: DisplayConfig::default(),
@@ -106,6 +136,7 @@ impl Default for Config {
 /// Semua yang bisa diubah di jendela Pengaturan.
 #[derive(Serialize, Deserialize)]
 struct Settings {
+    ads: AdConfig,
     display: DisplayConfig,
     language: Option<String>,
     host: String,
@@ -125,10 +156,43 @@ struct Server {
 /// Kunci agar pengumuman suara tidak saling tumpang tindih; diambil saat sedang berbicara.
 static SPEAKING: Mutex<()> = Mutex::new(());
 
+/// Proses mpv yang sedang memutar iklan video (Linux). Player WebKit tersendat, mpv mulus.
+static NATIVE_AD: Mutex<Option<std::process::Child>> = Mutex::new(None);
+
+fn stop_native_ad() {
+    if let Some(mut child) = NATIVE_AD.lock().unwrap().take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+}
+
+/// Putar iklan video lokal dengan mpv di atas jendela layar pelanggan. false = mpv tidak tersedia.
+fn start_native_ad(app: &AppHandle, monitor: &tauri::Monitor, config: &DisplayConfig) -> bool {
+    if !cfg!(target_os = "linux") { return false; }
+    let ads = app.state::<Mutex<Config>>().lock().unwrap().ads.clone();
+    if ads.kind != "video" || !is_local_ad_media(app, &ads.content) { return false; }
+    let (origin, screen) = (monitor.position(), monitor.size());
+    let mut command = std::process::Command::new("mpv");
+    command.args(["--no-config", "--really-quiet", "--no-terminal", "--no-audio", "--loop-file=inf",
+        "--ontop", "--no-border", "--no-osc", "--no-input-default-bindings", "--cursor-autohide=always",
+        "--title=Iklan", "--force-window=immediate"]);
+    if config.fullscreen {
+        command.arg("--fs").arg(format!("--geometry=+{}+{}", origin.x, origin.y));
+        if let Some(name) = monitor.name() { command.arg(format!("--fs-screen-name={name}")); }
+    } else {
+        let (w, h) = (config.width.min(screen.width), config.height.min(screen.height));
+        command.arg(format!("--geometry={w}x{h}+{}+{}", origin.x + ((screen.width - w) / 2) as i32, origin.y + ((screen.height - h) / 2) as i32));
+    }
+    match command.arg("--").arg(&ads.content).spawn() {
+        Ok(child) => { *NATIVE_AD.lock().unwrap() = Some(child); true }
+        Err(_) => false,
+    }
+}
+
 /// Item menu tray, disimpan agar teksnya bisa diganti saat bahasa berubah.
 struct TrayItems {
     settings: MenuItem<tauri::Wry>,
-    show: MenuItem<tauri::Wry>,
+    display: MenuItem<tauri::Wry>,
     quit: MenuItem<tauri::Wry>,
 }
 
@@ -272,18 +336,28 @@ fn reposition(app: &AppHandle) -> Result<(), String> {
 }
 
 fn show(app: &AppHandle, url: &str) -> Result<(), String> {
+    display_page(app, url, false)
+}
+
+fn display_page(app: &AppHandle, url: &str, is_ad: bool) -> Result<(), String> {
     let parsed: tauri::Url = url
         .parse()
         .map_err(|_| tr(app, "Alamat layar pelanggan tidak sah", "Invalid customer display address"))?;
     let config = display_config(app);
     let monitor = target_monitor(app, &config).ok_or_else(|| no_monitor(app))?;
+    stop_native_ad();
+    if is_ad { start_native_ad(app, &monitor, &config); }
 
     let window = match app.get_webview_window(WINDOW) {
         Some(window) => {
             window.navigate(parsed).map_err(|e| e.to_string())?;
             window
         }
-        None => WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::External(parsed))
+        None => WebviewWindowBuilder::new(app, WINDOW, if parsed == app_page(app, "") {
+            WebviewUrl::App("index.html".into())
+        } else {
+            WebviewUrl::External(parsed)
+        })
             .title("Layar Pelanggan")
             .decorations(false)
             .skip_taskbar(true)
@@ -291,7 +365,81 @@ fn show(app: &AppHandle, url: &str) -> Result<(), String> {
             .build()
             .map_err(|e| e.to_string())?,
     };
-    place(&window, &monitor, &config).map_err(|e| e.to_string())
+    place(&window, &monitor, &config).map_err(|e| e.to_string())?;
+    *app.state::<DisplayActivity>().0.lock().unwrap() = (std::time::Instant::now(), is_ad);
+    refresh_tray(app);
+    Ok(())
+}
+
+#[tauri::command]
+fn get_ad(window: WebviewWindow, app: AppHandle) -> Result<AdConfig, String> {
+    if window.label() != WINDOW { return Err("Forbidden".into()); }
+    if NATIVE_AD.lock().unwrap().is_some() {
+        // mpv yang memutar videonya; halaman cukup layar hitam di belakangnya
+        return Ok(AdConfig { kind: "text".into(), content: String::new(), ..AdConfig::default() });
+    }
+    Ok(app.state::<Mutex<Config>>().lock().unwrap().ads.clone())
+}
+
+#[tauri::command]
+async fn pick_ad_media(window: WebviewWindow, app: AppHandle, kind: String) -> Result<Option<String>, String> {
+    only_settings(&window)?;
+    let extensions: &[&str] = match kind.as_str() {
+        "image" => &["png", "jpg", "jpeg", "webp", "gif", "bmp"],
+        "video" => &["mp4", "webm", "ogv", "mov", "m4v"],
+        _ => return Err("Invalid media type".into()),
+    };
+    let extensions = extensions.to_vec();
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(file) = app.dialog().file().add_filter("Media", &extensions).blocking_pick_file() else {
+            return Ok(None);
+        };
+        let source = file.into_path().map_err(|e| e.to_string())?;
+        let extension = source.extension().and_then(|s| s.to_str()).unwrap_or_default().to_lowercase();
+        if !extensions.contains(&extension.as_str()) { return Err("Unsupported media format".into()); }
+        let directory = app.path().app_data_dir().map_err(|e| e.to_string())?.join("ad-media");
+        fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+        let id = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
+        let destination = directory.join(format!("{id}.{extension}"));
+        fs::copy(&source, &destination).map_err(|e| e.to_string())?;
+        Ok(Some(destination.to_string_lossy().into_owned()))
+    }).await.map_err(|e| e.to_string())?
+}
+
+fn is_local_ad_media(app: &AppHandle, content: &str) -> bool {
+    let Ok(directory) = app.path().app_data_dir().and_then(|p| p.join("ad-media").canonicalize().map_err(Into::into)) else { return false };
+    std::path::Path::new(content).canonicalize().is_ok_and(|p| p.starts_with(directory) && p.is_file())
+}
+
+#[tauri::command]
+fn show_ad(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+    only_settings(&window)?;
+    display_ad(&app)
+}
+
+fn display_ad(app: &AppHandle) -> Result<(), String> {
+    let ads = app.state::<Mutex<Config>>().lock().unwrap().ads.clone();
+    if ads.content.trim().is_empty() {
+        return Err(tr(app, "Isi konten iklan terlebih dahulu", "Enter ad content first"));
+    }
+    let url = if ads.kind == "web" {
+        ads.content.parse::<tauri::Url>().map_err(|e| e.to_string())?
+    } else {
+        app_page(app, "ads.html")
+    };
+    display_page(app, url.as_str(), true)
+}
+
+fn start_ads(app: AppHandle) {
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_secs(1));
+        let ads = app.state::<Mutex<Config>>().lock().unwrap().ads.clone();
+        if app.get_webview_window(WINDOW).is_none() { stop_native_ad(); continue; }
+        if !ads.enabled || ads.content.trim().is_empty() { continue; }
+        let (last_request, showing_ad) = *app.state::<DisplayActivity>().0.lock().unwrap();
+        if showing_ad || last_request.elapsed().as_secs() < ads.idle_seconds { continue; }
+        let _ = display_ad(&app);
+    });
 }
 
 /// Server POS dianggap terjangkau bila menjawab HTTP tanpa galat server (5xx dari proxy = aplikasinya mati).
@@ -308,13 +456,14 @@ fn reachable(url: &str) -> bool {
 /// tidak menampilkan halaman bawaan: POS mengirim alamat sendiri, atau jendela ditutup.
 /// Memanggil jaringan dan menunggu, jadi jalankan di luar thread utama.
 fn show_last(app: &AppHandle) -> Result<(), String> {
-    show(app, DEFAULT_PAGE)?;
+    let default_page = app_page(app, "");
+    show(app, default_page.as_str())?;
     let Some(url) = app.state::<Mutex<Config>>().lock().unwrap().last_url.clone() else { return Ok(()) };
     loop {
         let on_default = app
             .get_webview_window(WINDOW)
             .and_then(|w| w.url().ok())
-            .is_some_and(|u| u.as_str() == DEFAULT_PAGE);
+            .is_some_and(|u| u == default_page);
         if !on_default {
             return Ok(());
         }
@@ -382,7 +531,12 @@ fn open_settings(app: &AppHandle) {
 fn refresh_tray(app: &AppHandle) {
     let items = app.state::<TrayItems>();
     let _ = items.settings.set_text(tr(app, "Pengaturan…", "Settings…"));
-    let _ = items.show.set_text(tr(app, "Tampilkan ulang", "Show again"));
+    let display_text = if app.get_webview_window(WINDOW).is_some() {
+        tr(app, "Tutup layar pelanggan", "Close customer display")
+    } else {
+        tr(app, "Tampilkan layar pelanggan", "Show customer display")
+    };
+    let _ = items.display.set_text(display_text);
     let _ = items.quit.set_text(tr(app, "Keluar", "Quit"));
 }
 
@@ -415,6 +569,38 @@ fn bind(host: &str, port: u16) -> io::Result<TcpListener> {
     let listener = TcpListener::bind((host, port))?;
     listener.set_nonblocking(true)?;
     Ok(listener)
+}
+
+#[tauri::command]
+fn check_port(window: WebviewWindow, app: AppHandle, host: String, port: u16) -> Result<bool, String> {
+    only_settings(&window)?;
+    let host = host.trim();
+    if host != "localhost" && host.parse::<IpAddr>().is_err() {
+        return Err(tr(
+            &app,
+            "Host harus berupa alamat IP (mis. 127.0.0.1) atau localhost",
+            "Host must be an IP address (e.g. 127.0.0.1) or localhost",
+        ));
+    }
+    if port < 1024 {
+        return Err(tr(&app, "Port harus antara 1024 dan 65535", "Port must be between 1024 and 65535"));
+    }
+
+    let config = app.state::<Mutex<Config>>();
+    let current = config.lock().unwrap();
+    if host == current.host && port == current.port && app.state::<Server>().error.lock().unwrap().is_none() {
+        return Ok(true);
+    }
+    drop(current);
+
+    match TcpListener::bind((host, port)) {
+        Ok(listener) => {
+            drop(listener);
+            Ok(true)
+        }
+        Err(error) if error.kind() == io::ErrorKind::AddrInUse => Ok(false),
+        Err(error) => Err(bind_error(&app, host, port, error)),
+    }
 }
 
 /// Jalankan loop accept untuk listener; berhenti sendiri bila nomor generasi sudah berganti.
@@ -460,6 +646,7 @@ fn get_settings(window: WebviewWindow, app: AppHandle) -> Result<Value, String> 
         let state = app.state::<Mutex<Config>>();
         let config = state.lock().unwrap();
         Settings {
+            ads: config.ads.clone(),
             display: config.display.clone(),
             language: config.language.clone(),
             host: config.host.clone(),
@@ -515,6 +702,17 @@ fn pick_monitor(window: WebviewWindow, app: AppHandle, key: Option<String>) -> R
 #[tauri::command]
 fn save_settings(window: WebviewWindow, app: AppHandle, settings: Settings) -> Result<(), String> {
     only_settings(&window)?;
+    if !["text", "image", "video", "web"].contains(&settings.ads.kind.as_str()) || settings.ads.idle_seconds < 1 || settings.ads.idle_seconds > 86400 {
+        return Err(tr(&app, "Pengaturan iklan tidak sah (waktu tunggu 1–86400 detik)", "Invalid ad settings (idle time 1–86400 seconds)"));
+    }
+    if settings.ads.enabled && settings.ads.content.trim().is_empty() {
+        return Err(tr(&app, "Isi konten iklan terlebih dahulu", "Enter ad content first"));
+    }
+    if settings.ads.kind != "text" && !settings.ads.content.trim().is_empty() {
+        let remote = settings.ads.content.parse::<tauri::Url>().is_ok_and(|u| matches!(u.scheme(), "http" | "https"));
+        let local = matches!(settings.ads.kind.as_str(), "image" | "video") && is_local_ad_media(&app, &settings.ads.content);
+        if !remote && !local { return Err(tr(&app, "Pilih file media atau isi URL HTTP/HTTPS yang sah", "Choose a media file or enter a valid HTTP/HTTPS URL")); }
+    }
     let host = settings.host.trim().to_string();
     if host != "localhost" && host.parse::<IpAddr>().is_err() {
         return Err(tr(
@@ -556,6 +754,7 @@ fn save_settings(window: WebviewWindow, app: AppHandle, settings: Settings) -> R
     };
     {
         let mut config = state.lock().unwrap();
+        config.ads = settings.ads;
         config.display = display;
         config.language = language;
         config.host = host;
@@ -566,6 +765,12 @@ fn save_settings(window: WebviewWindow, app: AppHandle, settings: Settings) -> R
         save_config(&app, &config);
     }
     refresh_tray(&app);
+    let showing_ad = app.state::<DisplayActivity>().0.lock().unwrap().1;
+    if showing_ad && app.get_webview_window(WINDOW).is_some() {
+        let enabled = state.lock().unwrap().ads.enabled;
+        if enabled { display_ad(&app)?; }
+        else { show(&app, app_page(&app, "").as_str())?; }
+    }
     autostart?;
     reposition(&app)
 }
@@ -669,7 +874,9 @@ fn respond(app: &AppHandle, origin: &str, request: &Value) -> Value {
             if !is_allowed(app, origin) {
                 return not_allowed(lang(app));
             }
-            if let Some(window) = app.get_webview_window(WINDOW) {
+            if app.state::<Mutex<Config>>().lock().unwrap().ads.enabled {
+                let _ = show(app, app_page(app, "").as_str());
+            } else if let Some(window) = app.get_webview_window(WINDOW) {
                 let _ = window.close();
             }
             // Alamat dilupakan agar layar tidak muncul lagi saat login berikutnya
@@ -790,11 +997,24 @@ fn main() {
     }
     // Wayland melarang aplikasi menentukan posisi jendelanya; lewat X11 (XWayland) boleh
     #[cfg(target_os = "linux")]
-    std::env::set_var("GDK_BACKEND", "x11");
+    {
+        std::env::set_var("GDK_BACKEND", "x11");
+        // Biarkan WebKit memilih renderer untuk scaling dan komposisi.
+        // Pilihan decoder software di bawah hanya berlaku untuk H.264.
+        let ranks = std::env::var("GST_PLUGIN_FEATURE_RANK").unwrap_or_default();
+        if !ranks.split(',').any(|entry| entry.trim().starts_with("avdec_h264:")) {
+            let ranks = if ranks.is_empty() { "avdec_h264:512".into() } else { format!("{ranks},avdec_h264:512") };
+            std::env::set_var("GST_PLUGIN_FEATURE_RANK", ranks);
+        }
+    }
 
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             get_settings,
+            get_ad,
+            pick_ad_media,
+            show_ad,
+            check_port,
             save_settings,
             voice_model_status,
             download_voice_model,
@@ -817,15 +1037,16 @@ fn main() {
             let (host, port, autostart) = (config.host.clone(), config.port, config.autostart);
             app.manage(Mutex::new(config));
             app.manage(Server::default());
+            app.manage(DisplayActivity(Mutex::new((std::time::Instant::now(), false))));
             app.manage(model::DownloadState::default());
 
             let _ = apply_autostart(&handle, autostart);
 
             let quit = MenuItem::with_id(app, "quit", tr(&handle, "Keluar", "Quit"), true, None::<&str>)?;
-            let reshow = MenuItem::with_id(app, "show", tr(&handle, "Tampilkan ulang", "Show again"), true, None::<&str>)?;
+            let display = MenuItem::with_id(app, "display", tr(&handle, "Tampilkan layar pelanggan", "Show customer display"), true, None::<&str>)?;
             let settings = MenuItem::with_id(app, "settings", tr(&handle, "Pengaturan…", "Settings…"), true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&settings, &reshow, &quit])?;
-            app.manage(TrayItems { settings, show: reshow, quit });
+            let menu = Menu::with_items(app, &[&settings, &display, &quit])?;
+            app.manage(TrayItems { settings, display, quit });
 
             let mut tray = TrayIconBuilder::new()
                 .tooltip("POS Agent")
@@ -833,11 +1054,17 @@ fn main() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => app.exit(0),
                     "settings" => open_settings(app),
-                    "show" => {
-                        let app = app.clone();
-                        thread::spawn(move || {
-                            let _ = show_last(&app);
-                        });
+                    "display" => {
+                        if let Some(window) = app.get_webview_window(WINDOW) {
+                            let _ = window.close();
+                            refresh_tray(app);
+                        } else {
+                            let app = app.clone();
+                            thread::spawn(move || {
+                                let _ = show_last(&app);
+                                refresh_tray(&app);
+                            });
+                        }
                     }
                     _ => {}
                 });
@@ -859,6 +1086,7 @@ fn main() {
             if let Some(model) = audio::find_model_dir(&model_dir_candidates(&handle)) {
                 thread::spawn(move || audio::preload(&model));
             }
+            start_ads(handle.clone());
             startup(handle);
             Ok(())
         })
@@ -869,6 +1097,7 @@ fn main() {
             RunEvent::ExitRequested { api, code: None, .. } => api.prevent_exit(),
             // Aplikasi ditutup: lupakan alamat terakhir, jadi start berikutnya menampilkan halaman bawaan
             RunEvent::Exit => {
+                stop_native_ad();
                 let state = app.state::<Mutex<Config>>();
                 let mut config = state.lock().unwrap();
                 config.last_url = None;
